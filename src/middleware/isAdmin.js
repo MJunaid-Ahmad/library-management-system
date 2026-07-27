@@ -21,6 +21,7 @@ async function isAdmin(req, res, next) {
       message: "Only admin can access",
     });      
     }
+    req.user = decoded ;
     next()
   } catch (err) {
     return res.status(401).json({

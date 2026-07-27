@@ -10,7 +10,6 @@ async function sortBooks(req, res, next) {
     } 
     else if (sort === "publish") {
       sortedBooks = await bookModel.find().sort({ publish: 1 });
-      console.log("Publish : ", sortedBooks);
     } 
     else {
       return res.status(400).json({

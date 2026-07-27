@@ -3,7 +3,6 @@ import bookModel from "../model/bookModel.js";
 async function isAvailable(req, res, next) {
   try {
     let { isbn, activity } = req.params;
-    console.log(req.query)
     if (activity === "return") {
       await bookModel.findOneAndUpdate(
         { isbn },
