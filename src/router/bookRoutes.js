@@ -1,5 +1,5 @@
 import {addBook , deleteBook , updateBook} from "../controller/bookController.js" ;
-import uploadImage from "../middleware/uploadImage.js"
+import uploadImage from "../utils/uploadImage.js"
 import updatedData from "../middleware/updateData.js";
 import validateBookData from "../middleware/validateBookData.js";
 import isAdmin from "../middleware/isAdmin.js"

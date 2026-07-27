@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import bookModel from "../model/bookModel.js";
+import deleteImage from "../utils/deleteImage.js"
 import fs from "fs/promises";
 import path from "path";
 
@@ -42,13 +43,7 @@ async function deleteBook(req, res, next) {
       });
     }
 
-    let imagePath = path.join(import.meta.dirname, "..", "..", book.coverImage);
-      
-    try{
-        await fs.unlink(imagePath)
-      }catch(err){
-        next(err)
-      }
+    await deleteImage(book.coverImage)
 
     await bookModel.findOneAndDelete({ isbn });
     res.status(200).json({
