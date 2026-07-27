@@ -6,7 +6,7 @@ dotenv.config();
 
 async function registerUser(req, res, next) {
   try {
-    let { name, email, password } = req.body;
+    let { name, email, password, role } = req.body;
 
     if (await userModel.exists({ email })) {
       return res.status(409).json({
@@ -20,12 +20,12 @@ async function registerUser(req, res, next) {
       name: name,
       email: email,
       password: hashedPassword,
+      role: role
     });
 
     const token = jwt.sign(
-      { id: newUser._id, email: newUser.email },
+      { id: newUser._id, email: newUser.email, role: newUser.role },
       process.env.JWT_SECRET_KEY,
-      { expiresIn: "1m" },
     );
 
     res.cookie("token", token);
@@ -60,12 +60,21 @@ async function loginUser(req, res, next) {
         message: "Invalid password",
       });
     }
+
+    const token = jwt.sign(
+      { id: user._id, email: user.email, role: user.role },
+      process.env.JWT_SECRET_KEY,
+    );
+
+    res.cookie("token", token);
+
     res.status(200).json({
-        success : true , 
-        message: "Login Successfully...."
+      success: true,
+      message: "Login Successfully....",
     });
   } catch (err) {
     next(err);
   }
 }
+
 export { registerUser, loginUser };

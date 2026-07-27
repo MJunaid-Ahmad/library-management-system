@@ -1,6 +1,6 @@
 function validateUserData(req, res, next) {
   try {
-    let { name, email, password } = req.body;
+    let { name, email, password , role } = req.body;
     if (name === undefined || name === "")
       return res.status(404).json({
         success: false,
@@ -18,6 +18,13 @@ function validateUserData(req, res, next) {
         success: false,
         message: "password is required",
       });
+
+    if (role === "")
+      return res.status(404).json({
+        success: false,
+        message: "role is required",
+      });
+
     next();
   } catch (err) {
     next(err);
@@ -44,4 +51,5 @@ function validateLoginData(req, res, next) {
     next(err);
   }
 }
-export { validateUserData , validateLoginData};
+
+export { validateUserData, validateLoginData };

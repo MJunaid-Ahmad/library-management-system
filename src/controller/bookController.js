@@ -3,10 +3,19 @@ import bookModel from "../model/bookModel.js";
 
 async function addBook(req, res, next) {
   try {
+    
     let { title, author, category, isbn, publish, isAvailable } = req.body;
+    console.log(req.file.filename)
+    if(await bookModel.exists({ isbn }))
+      return res.status(409).json({
+        success : false , 
+        message : "Book with this ISBN already exists"
+      })
+
     let book = await bookModel.create({
       title,
       author,
+      coverImage : req.file.path ,
       category,
       isbn,
       publish,

@@ -31,4 +31,5 @@ async function isAvailable(req, res, next) {
     next(err);
   }
 }
+
 export default isAvailable;

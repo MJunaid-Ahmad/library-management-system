@@ -8,7 +8,11 @@ const bookSchema = new mongoose.Schema({
     author : {
      type : String ,
      required : true 
-    }, 
+    },
+    coverImage : {
+        type : String ,
+        required : true
+    } ,
     category : {
      type : String ,
      required : true 
