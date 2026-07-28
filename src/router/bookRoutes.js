@@ -10,6 +10,6 @@ const router = express.Router() ;
 router.post("/addbook" , isAdmin , uploadImage.single("coverImage")  , validateBookData ,  addBook)
 
 router.delete("/deletebook/:isbn" , isAdmin , deleteBook )
-router.patch("/updatebook/:isbn" , isAdmin , updatedData , updateBook )
+router.patch("/updatebook/:isbn" , isAdmin , uploadImage.single("coverImage") , updatedData , updateBook )
 
 export default router ; 

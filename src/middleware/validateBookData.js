@@ -3,6 +3,12 @@ import deleteImage from "../utils/deleteImage.js";
 async function validateBookData(req, res, next) {
   let { title, author, category, isbn, publish, isAvailable } = req.body;
 
+  if (!req.file) {
+    return res.status(404).json({
+      success: false,
+      message: "Image is required",
+    });
+  }
   if (title === undefined || title === "") {
     await deleteImage(req.file.path);
     return res.status(404).json({

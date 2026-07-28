@@ -58,11 +58,19 @@ async function deleteBook(req, res, next) {
 
 async function updateBook(req, res, next) {
   try {
+    
     let isbn = req.params.isbn;
-    if (await bookModel.exists({ isbn })) {
-      await bookModel.findOneAndUpdate({ isbn }, req.updatedData, {
-        returnDocument: "after",
-      });
+    let book = await bookModel.findOne({ isbn })
+    if (book) {
+
+      if(req.file){
+      req.updatedData.coverImage = req.file.path ;
+      deleteImage(book.coverImage)
+      }
+      await bookModel.findOneAndUpdate({ isbn } , 
+        req.updatedData ,
+        {returnDocument: "after",}
+      );
       res.status(200).json({
         success: true,
         message: "Book data Updated Successfully",
