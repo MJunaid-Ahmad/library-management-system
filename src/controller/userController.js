@@ -165,7 +165,7 @@ async function toRefreshToken(req, res, next) {
 
     const accessToken = await jwt.sign({ id : user._id , email : user.email , role : user.role} ,
       process.env.ACCESS_TOKEN_SECRET ,
-      {expiresIn : "1m"}
+      {expiresIn : "15m"}
      )
 
     res.cookie("accessToken", accessToken, {
