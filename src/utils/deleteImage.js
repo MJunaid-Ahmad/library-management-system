@@ -7,7 +7,7 @@ async function deleteImage(url) {
   try {
     await fs.unlink(imagePath);
   } catch (err) {
-    next(err);
+    
   }
   
 }

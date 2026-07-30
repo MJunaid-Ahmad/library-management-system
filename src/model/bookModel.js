@@ -28,7 +28,7 @@ const bookSchema = new mongoose.Schema({
     },
     isAvailable : {
      type : Boolean ,
-     defautl : true
+     default : true
     },
 } , 
 {

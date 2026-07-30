@@ -1,9 +1,9 @@
-import {registerUser , loginUser} from "../controller/userController.js";
-import { validateUserData , validateLoginData} from "../middleware/validateUserData.js";
-import express from 'express'
+import express from 'express';
+import { loginUser, registerUser , toRefreshToken } from "../controller/userController.js";
 const router = express.Router() ;
 
-router.post("/register" , validateUserData , registerUser)
-router.post("/login" , validateLoginData , loginUser)
+router.post("/register" , registerUser)
+router.post("/login" ,  loginUser)
+router.post("/refresh-token" ,  toRefreshToken)
 
 export default router;

@@ -1,40 +1,71 @@
-import userModel from "../model/userModel.js";
-import dotenv from "dotenv";
 import bcrypt from "bcrypt";
+import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
+import userModel from "../model/userModel.js";
 dotenv.config();
 
 async function registerUser(req, res, next) {
   try {
     let { name, email, password, role } = req.body;
 
-    if (await userModel.exists({ email })) {
-      return res.status(409).json({
-        success: false,
-        message: "User already exists",
-      });
-    }
+    if (!(name === undefined || name === ""))
+      if (!!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+        if (!(password === undefined || password === ""))
+          if (!(role === "")) {
+            if (await userModel.exists({ email })) {
+              return res.status(409).json({
+                success: false,
+                message: "User already exists",
+              });
+            }
 
-    let hashedPassword = await bcrypt.hash(password, 10);
-    let newUser = await userModel.create({
-      name: name,
-      email: email,
-      password: hashedPassword,
-      role: role
-    });
+            let hashedPassword = await bcrypt.hash(password, 10);
 
-    const token = jwt.sign(
-      { id: newUser._id, email: newUser.email, role: newUser.role },
-      process.env.JWT_SECRET_KEY,
-      {expiresIn: `${process.env.SESSION_EXPIRESIN}` }
-    );
+            let newUser = await userModel.create({
+              name: name,
+              email: email,
+              password: hashedPassword,
+              role: role,
+            });
 
-    res.cookie("token", token);
+            const accessToken = jwt.sign(
+              { id: newUser._id, email: newUser.email, role: newUser.role },
+              process.env.ACCESS_TOKEN_SECRET,
+              { expiresIn: "15m" },
+            );
 
-    res.status(200).json({
-      success: true,
-      message: "User registered Successfully",
-      Token: token,
+            const refreshToken = jwt.sign(
+              { id: newUser._id, email: newUser.email, role: newUser.role },
+              process.env.REFRESH_TOKEN_SECRET,
+              { expiresIn: "7d" },
+            );
+
+            newUser.refreshToken = refreshToken;
+            await newUser.save();
+
+            res.cookie("accessToken", accessToken, {
+              httpOnly: true,
+              sameSite: "lax",
+              secure: false,
+              maxAge: 15 * 60 * 1000,
+            });
+
+            res.cookie("refreshToken", refreshToken, {
+              httpOnly: true,
+              sameSite: "lax",
+              secure: false,
+              maxAge: 7 * 24 * 60 * 60 * 1000,
+            });
+
+            return res.status(200).json({
+              success: true,
+              message: "User registered Successfully",
+            });
+          }
+
+    res.status(400).json({
+      success: false,
+      message: "Invalid input data.",
     });
   } catch (err) {
     next(err);
@@ -45,38 +76,113 @@ async function loginUser(req, res, next) {
   try {
     let { email, password } = req.body;
 
-    let user = await userModel.findOne({ email });
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      if (!(password === undefined || password === "")) {
+        let user = await userModel.findOne({ email });
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "No user exists with this mail !",
-      });
-    }
+        if (!user) {
+          return res.status(404).json({
+            success: false,
+            message: "No user exists with this mail !",
+          });
+        }
 
-    let isValidPassword = await bcrypt.compare(password, user.password);
+        let isValidPassword = await bcrypt.compare(password, user.password);
 
-    if (!isValidPassword) {
-      return res.status(401).json({
-        message: "Invalid password",
-      });
-    }
+        if (!isValidPassword) {
+          return res.status(401).json({
+            success: false,
+            message: "Invalid password",
+          });
+        }
 
-    const token = jwt.sign(
-      { id: user._id, email: user.email, role: user.role },
-      process.env.JWT_SECRET_KEY,
-      {expiresIn: `${process.env.SESSION_EXPIRESIN}` }
-    );
+        const accessToken = jwt.sign(
+          { id: user._id, email: user.email, role: user.role },
+          process.env.ACCESS_TOKEN_SECRET,
+          { expiresIn: "15m" },
+        );
 
-    res.cookie("token", token);
+        const refreshToken = jwt.sign(
+          { id: user._id, email: user.email, role: user.role },
+          process.env.REFRESH_TOKEN_SECRET,
+          { expiresIn: "7d" },
+        );
 
-    res.status(200).json({
-      success: true,
-      message: "Login Successfully....",
+        user.refreshToken = refreshToken;
+        await user.save();
+
+        res.cookie("accessToken", accessToken, {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: false,
+          maxAge: 15 * 60 * 1000,
+        });
+
+        res.cookie("refreshToken", refreshToken, {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: false,
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+
+        return res.status(200).json({
+          success: true,
+          message: "Login Successfully....",
+        });
+      }
+
+    res.status(400).json({
+      success: false,
+      message: "Invalid input data.",
     });
   } catch (err) {
     next(err);
   }
 }
 
-export { registerUser, loginUser };
+async function toRefreshToken(req, res, next) {
+  try {
+    let refreshToken = req.cookies.refreshToken;
+    if (!refreshToken)
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+
+    const decoded = await jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+    if(!decoded)
+      return res.status(403).json({
+        success : false ,
+        message : "Forbidden"
+      })
+
+    const user = await userModel.findById(decoded.id)
+    if(!user || user.refreshToken !== refreshToken)
+      return res.status(403).json({
+        success : false ,
+        message : "Forbidden"
+      })
+
+    const accessToken = await jwt.sign({ id : user._id , email : user.email , role : user.role} ,
+      process.env.ACCESS_TOKEN_SECRET ,
+      {expiresIn : "1m"}
+     )
+
+    res.cookie("accessToken", accessToken, {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: false,
+          maxAge: 15 * 60 * 1000,
+        });
+
+    res.status(200).json({
+      success : true , 
+      message : "Token refreshed successfully."
+    })
+  
+  } catch (err) {
+    next(err);
+  }
+}
+
+export { loginUser, registerUser, toRefreshToken };
