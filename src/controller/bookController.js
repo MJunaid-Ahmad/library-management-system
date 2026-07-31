@@ -126,7 +126,7 @@ async function searchBooks(req, res, next) {
 
     let limit =
       req.query.limit === undefined || req.query.page === ""
-        ? 1
+        ? 3
         : Number(req.query.limit) ;
 
     if (page <= 0 || isNaN(page))
@@ -191,6 +191,7 @@ async function sortBooks(req, res, next) {
       req.query.page === undefined || req.query.page === ""
         ? 1
         : Number(req.query.page);
+        
     let limit =
       req.query.limit === undefined || req.query.page === ""
         ? 3

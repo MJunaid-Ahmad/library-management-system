@@ -1,7 +1,9 @@
 import bcrypt from "bcrypt";
+import os from "os";
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
 import userModel from "../model/userModel.js";
+import sessionModel from "../model/sessionModel.js";
 dotenv.config();
 
 async function registerUser(req, res, next) {
@@ -75,7 +77,6 @@ async function registerUser(req, res, next) {
 async function loginUser(req, res, next) {
   try {
     let { email, password } = req.body;
-
     if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       if (!(password === undefined || password === "")) {
         let user = await userModel.findOne({ email });
@@ -84,6 +85,7 @@ async function loginUser(req, res, next) {
           return res.status(404).json({
             success: false,
             message: "No user exists with this mail !",
+            OS: os.platform,
           });
         }
 
@@ -110,6 +112,33 @@ async function loginUser(req, res, next) {
 
         user.refreshToken = refreshToken;
         await user.save();
+
+        //Session
+
+        let loginTime = new Date();
+        let expiresAt = new Date(loginTime)
+        expiresAt.setDate(expiresAt.getDate() + 7);
+
+        let getDevice = (req) => {
+          console.log(req.useragent);
+          if (req.useragent.isMobile) return "Mobile";
+          if (req.useragent.isDesktop) return "Laptop";
+          if (req.useragent.isTablet) return "Tablet";
+          return "Unknown";
+        };
+        const session = await sessionModel.create({
+          userId: user._id,
+          refreshToken: user.refreshToken,
+          accessToken: accessToken,
+          device: getDevice(req) + "-" + os.hostname(),
+          browser: req.useragent.browser,
+          ipAddress: req.ip,
+          loginTime,
+          lastActivity: new Date(),
+          expiresAt,
+          isActive: true,
+          logoutTime: null,
+        });
 
         res.cookie("accessToken", accessToken, {
           httpOnly: true,
@@ -149,40 +178,91 @@ async function toRefreshToken(req, res, next) {
         message: "Unauthorized",
       });
 
-    const decoded = await jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-    if(!decoded)
+    const decoded = jwt.verify(
+      refreshToken,
+      process.env.REFRESH_TOKEN_SECRET,
+    );
+    if (!decoded)
       return res.status(403).json({
-        success : false ,
-        message : "Forbidden"
-      })
+        success: false,
+        message: "Forbidden",
+      });
 
-    const user = await userModel.findById(decoded.id)
-    if(!user || user.refreshToken !== refreshToken)
+    const user = await userModel.findById(decoded.id);
+    if (!user || user.refreshToken !== refreshToken)
       return res.status(403).json({
-        success : false ,
-        message : "Forbidden"
-      })
+        success: false,
+        message: "Forbidden",
+      });
 
-    const accessToken = await jwt.sign({ id : user._id , email : user.email , role : user.role} ,
-      process.env.ACCESS_TOKEN_SECRET ,
-      {expiresIn : "15m"}
-     )
+    const accessToken = jwt.sign(
+      { id: user._id, email: user.email, role: user.role },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: "15m" },
+    );
 
     res.cookie("accessToken", accessToken, {
-          httpOnly: true,
-          sameSite: "lax",
-          secure: false,
-          maxAge: 15 * 60 * 1000,
-        });
+      httpOnly: true,
+      sameSite: "lax",
+      secure: false,
+      maxAge: 15 * 60 * 1000,
+    });
 
     res.status(200).json({
-      success : true , 
-      message : "Token refreshed successfully."
-    })
-  
+      success: true,
+      message: "Token refreshed successfully.",
+    });
   } catch (err) {
     next(err);
   }
 }
 
-export { loginUser, registerUser, toRefreshToken };
+async function logout(req, res, next) {
+  try {
+    let refreshToken = req.cookies.refreshToken;
+
+    if (!refreshToken)
+      return res.status(401).json({
+        success: false,
+        message: "You are not logged in.",
+      });
+
+    let decoded = await jwt.verify(
+      refreshToken,
+      process.env.REFRESH_TOKEN_SECRET,
+    );
+
+    let user = await userModel.findOneAndUpdate(
+      { email: decoded.email },
+      { refreshToken: null },
+      { returnDocument: "after" },
+    );
+
+    if (!user)
+      return res.status(404).json({
+        success: false,
+        message: "User not found.",
+      });
+
+    res.clearCookie("accessToken", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: false,
+    });
+
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: false,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Logout successfully",
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export { loginUser, registerUser, toRefreshToken, logout };
