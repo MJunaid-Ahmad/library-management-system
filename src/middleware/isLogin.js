@@ -1,29 +1,39 @@
-import { toRefreshToken}  from '../controller/userController.js';
-import jwt from 'jsonwebtoken' ;
-import dotenv  from 'dotenv';
-dotenv.config()
+import dotenv from "dotenv";
+import jwt from "jsonwebtoken";
+import sessionModel from "../model/sessionModel.js";
+dotenv.config();
 
-async function isLogin(req , res , next){
-    try{
-        const accessToken = req.cookies.accessToken ;
+async function isLogin(req, res, next) {
+  try {
+    const accessToken = req.cookies.accessToken;
 
-        if(!accessToken){
-            return res.status(401).json({
-                success : false ,
-                message : "Unauthorized" ,
-            });
-        }
-
-        const decoded = await jwt.verify(accessToken , process.env.ACCESS_TOKEN_SECRET)
-        req.user = decoded ;
-
-        next();
-    }catch(err){
+    if (!accessToken) {
       return res.status(401).json({
-      success: false,
-      message: "Invalid or expired token"
+        success: false,
+        message: "Unauthorized",
       });
     }
+
+    const decoded = await jwt.verify(
+      accessToken,
+      process.env.ACCESS_TOKEN_SECRET,
+    );
+
+    let session = await sessionModel.findOneAndUpdate(
+      { userId: decoded.id ,  refreshToken : req.cookies.refreshToken },
+      { lastActivity: new Date() },
+      { returnDocument: "after"  },
+    );
+
+    req.user = decoded;
+    next();
+
+  } catch (err) {
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired token",
+    });
+  }
 }
 
 async function isAdmin(req, res, next) {
@@ -33,21 +43,26 @@ async function isAdmin(req, res, next) {
     if (!accessToken) {
       return res.status(401).json({
         success: false,
-        message: "Unauthorized"
+        message: "Unauthorized",
       });
     }
 
-    const decoded = await jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET);
+    const decoded = jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET);
+    if (!(decoded.role === "admin")) 
+      return res.status(403).json({
+        success: false,
+        message: "Only admin can access",
+      });
+    
+    let session = await sessionModel.findOneAndUpdate(
+      { userId: decoded.id ,  refreshToken : req.cookies.refreshToken },
+      { lastActivity: new Date() },
+      { returnDocument: "after"  },
+    );
 
-    if (!(decoded.role === "admin")) {
-     return res.status(401).json({
-      success: false,
-      message: "Only admin can access",
-    });      
-    }
+    req.user = decoded;
+    next();
 
-    req.user = decoded ;
-    next()
   } catch (err) {
     return res.status(401).json({
       success: false,
@@ -57,4 +72,5 @@ async function isAdmin(req, res, next) {
   }
 }
 
-export { isLogin , isAdmin } ;
+export { isAdmin, isLogin };
+

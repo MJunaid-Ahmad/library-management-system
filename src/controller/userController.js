@@ -1,9 +1,9 @@
 import bcrypt from "bcrypt";
-import os from "os";
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
-import userModel from "../model/userModel.js";
+import os from "os";
 import sessionModel from "../model/sessionModel.js";
+import userModel from "../model/userModel.js";
 dotenv.config();
 
 async function registerUser(req, res, next) {
@@ -112,33 +112,48 @@ async function loginUser(req, res, next) {
 
         user.refreshToken = refreshToken;
         await user.save();
+        
+        //       Session
 
-        //Session
-
-        let loginTime = new Date();
-        let expiresAt = new Date(loginTime)
-        expiresAt.setDate(expiresAt.getDate() + 7);
-
-        let getDevice = (req) => {
-          console.log(req.useragent);
-          if (req.useragent.isMobile) return "Mobile";
-          if (req.useragent.isDesktop) return "Laptop";
-          if (req.useragent.isTablet) return "Tablet";
-          return "Unknown";
-        };
-        const session = await sessionModel.create({
+        let sessionAlreadyExists = await sessionModel.findOne({
           userId: user._id,
-          refreshToken: user.refreshToken,
-          accessToken: accessToken,
-          device: getDevice(req) + "-" + os.hostname(),
-          browser: req.useragent.browser,
-          ipAddress: req.ip,
-          loginTime,
-          lastActivity: new Date(),
-          expiresAt,
           isActive: true,
-          logoutTime: null,
         });
+
+        if (sessionAlreadyExists) {
+          console.log(sessionAlreadyExists)
+          let session = await sessionModel.findOneAndUpdate(
+            { userId: user._id , isActive : true},
+            { lastActivity: new Date() , refreshToken : refreshToken  },
+            { returnDocument: "after" },
+          );
+          console.log(session)
+        } else {
+          let loginTime = new Date();
+          let expiresAt = new Date(loginTime);
+          expiresAt.setDate(expiresAt.getDate() + 7);
+
+          let getDevice = (req) => {
+            console.log(req.useragent);
+            if (req.useragent.isMobile) return "Mobile";
+            if (req.useragent.isDesktop) return "Laptop";
+            if (req.useragent.isTablet) return "Tablet";
+            return "Unknown";
+          };
+
+          const session = await sessionModel.create({
+            userId: user._id,
+            refreshToken: user.refreshToken,
+            device: getDevice(req) + "-" + os.hostname(),
+            browser: req.useragent.browser,
+            ipAddress: req.ip,
+            loginTime,
+            lastActivity: new Date(),
+            expiresAt,
+            isActive: true,
+            logoutTime: null,
+          });
+        }
 
         res.cookie("accessToken", accessToken, {
           httpOnly: true,
@@ -178,10 +193,7 @@ async function toRefreshToken(req, res, next) {
         message: "Unauthorized",
       });
 
-    const decoded = jwt.verify(
-      refreshToken,
-      process.env.REFRESH_TOKEN_SECRET,
-    );
+    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
     if (!decoded)
       return res.status(403).json({
         success: false,
@@ -237,6 +249,15 @@ async function logout(req, res, next) {
       { refreshToken: null },
       { returnDocument: "after" },
     );
+    let userSession = await sessionModel.findOneAndUpdate(
+      { userId: user._id, refreshToken: refreshToken },
+      {
+        lastActivity: new Date(),
+        logoutTime: new Date(),
+        isActive: false,
+        refreshToken: null,
+      },
+    );
 
     if (!user)
       return res.status(404).json({
@@ -265,4 +286,5 @@ async function logout(req, res, next) {
   }
 }
 
-export { loginUser, registerUser, toRefreshToken, logout };
+export { loginUser, logout, registerUser, toRefreshToken };
+

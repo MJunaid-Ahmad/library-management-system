@@ -1,6 +1,6 @@
 import express from 'express';
 import { addBook, deleteBook, isAvailable, searchBooks, sortBooks, updateBook } from "../controller/bookController.js";
-import { isLogin , isAdmin } from '../middleware/isLogin.js';
+import { isAdmin, isLogin } from '../middleware/isLogin.js';
 import uploadImage from "../middleware/uploadImage.js";
 
 const router = express.Router() ;

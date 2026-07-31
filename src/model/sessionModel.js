@@ -11,9 +11,6 @@ const session = new mongoose.Schema({
         type : String ,
         required : true 
     } ,
-    accessToken : {
-        type: String
-    } ,
     device : {
         type : String 
     },
