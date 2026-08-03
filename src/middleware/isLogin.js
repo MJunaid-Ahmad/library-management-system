@@ -19,7 +19,11 @@ async function isLogin(req, res, next) {
     const decoded = jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET);
 
     let session = await sessionModel.findOneAndUpdate(
-      { userId: decoded.id, refreshToken: req.cookies.refreshToken },
+      {
+        userId: decoded.id,
+        refreshToken: req.cookies.refreshToken,
+        isActive: true,
+      },
       { lastActivity: new Date() },
       { returnDocument: "after" },
     );
@@ -34,7 +38,6 @@ async function isLogin(req, res, next) {
     next();
   } catch (err) {
     try {
-
       if (err.name === "TokenExpiredError" || !accessToken) {
         const decoded = jwt.verify(
           refreshToken,
@@ -52,7 +55,7 @@ async function isLogin(req, res, next) {
         const newAccessToken = jwt.sign(
           { id: user._id, email: user.email, role: user.role },
           process.env.ACCESS_TOKEN_SECRET,
-          { expiresIn: "1m" },
+          { expiresIn: process.env.ACCESS_TOKEN_EXPIRE },
         );
 
         let session = await sessionModel.findOneAndUpdate(
@@ -75,27 +78,47 @@ async function isLogin(req, res, next) {
           httpOnly: true,
           sameSite: "lax",
           secure: false,
-          maxAge: 15 * 60 * 1000,
+          maxAge: process.env.ACCESS_TOKEN_AGE,
         });
 
         req.user = decoded;
         next();
       } else {
-        next(err); 
+        next(err);
       }
-
     } catch (err) {
-      if (err.name === "TokenExpiredError"){
+      if (err.name === "TokenExpiredError") {
+        await sessionModel.findOneAndUpdate(
+          {
+            refreshToken: req.cookies.refreshToken,
+            isActive: true,
+          },
+          { isActive: false, logoutTime: new Date() },
+          { returnDocument: "after" },
+        );
         return res.status(401).json({
           success: false,
           message: "Session Ended",
         });
       }
-        
+
       next(err);
     }
-    
   }
+}
+
+async function isAdmin(req, res, next) {
+  try {
+    const accessToken = req.cookies.accessToken;
+    const decoded = jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET);
+
+    if (!(decoded.role === "admin"))
+      return res.status(403).json({
+        success: false,
+        message: "Only admin can access",
+      });
+
+  } catch (err) { next(err)}
 }
 
 // async function isLogin(req, res, next) {
@@ -168,71 +191,71 @@ async function isLogin(req, res, next) {
 //   }
 // }
 
-async function isAdmin(req, res, next) {
-  try {
-    const accessToken = req.cookies.accessToken;
-    const refreshToken = req.cookies.refreshToken;
+// async function isAdmin(req, res, next) {
+//   try {
+//     const accessToken = req.cookies.accessToken;
+//     const refreshToken = req.cookies.refreshToken;
 
-    if (!accessToken && !refreshToken) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized",
-      });
-    }
+//     if (!accessToken && !refreshToken) {
+//       return res.status(401).json({
+//         success: false,
+//         message: "Unauthorized",
+//       });
+//     }
 
-    const decoded = jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET);
+//     const decoded = jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET);
 
-    if (!(decoded.role === "admin"))
-      return res.status(403).json({
-        success: false,
-        message: "Only admin can access",
-      });
+//     if (!(decoded.role === "admin"))
+//       return res.status(403).json({
+//         success: false,
+//         message: "Only admin can access",
+//       });
 
-    let session = await sessionModel.findOneAndUpdate(
-      { userId: decoded.id, refreshToken: req.cookies.refreshToken },
-      { lastActivity: new Date() },
-      { returnDocument: "after" },
-    );
+//     let session = await sessionModel.findOneAndUpdate(
+//       { userId: decoded.id, refreshToken: req.cookies.refreshToken },
+//       { lastActivity: new Date() },
+//       { returnDocument: "after" },
+//     );
 
-    req.user = decoded;
-    next();
-  } catch (err) {
-    if (err.name !== "TokenExpiredError") {
-      return res.status(401).json({
-        success: false,
-        error: err.message,
-      });
-    }
+//     req.user = decoded;
+//     next();
+//   } catch (err) {
+//     if (err.name !== "TokenExpiredError") {
+//       return res.status(401).json({
+//         success: false,
+//         error: err.message,
+//       });
+//     }
 
-    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+//     const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
 
-    const user = await userModel.findById(decoded.id);
-    if (!user || user.refreshToken !== refreshToken)
-      return res.status(403).json({
-        success: false,
-        message: "Forbidden",
-      });
+//     const user = await userModel.findById(decoded.id);
+//     if (!user || user.refreshToken !== refreshToken)
+//       return res.status(403).json({
+//         success: false,
+//         message: "Forbidden",
+//       });
 
-    const accessToken = jwt.sign(
-      { id: user._id, email: user.email, role: user.role },
-      process.env.ACCESS_TOKEN_SECRET,
-      { expiresIn: "15m" },
-    );
+//     const accessToken = jwt.sign(
+//       { id: user._id, email: user.email, role: user.role },
+//       process.env.ACCESS_TOKEN_SECRET,
+//       { expiresIn: `${process.env.ACCESS_TOKEN_EXPIRE}` },
+//     );
 
-    res.cookie("accessToken", accessToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: false,
-      maxAge: 15 * 60 * 1000,
-    });
+//     res.cookie("accessToken", accessToken, {
+//       httpOnly: true,
+//       sameSite: "lax",
+//       secure: false,
+//       maxAge: process.env.ACCESS_TOKEN_AGE,
+//     });
 
-    res.status(200).json({
-      success: true,
-      message: "Token refreshed successfully.",
-    });
+//     res.status(200).json({
+//       success: true,
+//       message: "Token refreshed successfully.",
+//     });
 
-    next();
-  }
-}
+//     next();
+//   }
+// }
 
 export { isAdmin, isLogin };

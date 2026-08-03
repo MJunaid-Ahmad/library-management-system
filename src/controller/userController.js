@@ -1,7 +1,6 @@
 import bcrypt from "bcrypt";
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
-import os from "os";
 import sessionModel from "../model/sessionModel.js";
 import userModel from "../model/userModel.js";
 dotenv.config();
@@ -98,13 +97,13 @@ async function loginUser(req, res, next) {
         const accessToken = jwt.sign(
           { id: user._id, email: user.email, role: user.role },
           process.env.ACCESS_TOKEN_SECRET,
-          { expiresIn: "1m" },
+          { expiresIn:process.env.ACCESS_TOKEN_EXPIRE },
         );
 
         const refreshToken = jwt.sign(
           { id: user._id, email: user.email, role: user.role },
           process.env.REFRESH_TOKEN_SECRET,
-          { expiresIn: "7d" },
+          { expiresIn:process.env.REFRESH_TOKEN_EXPIRE },
         );
 
         user.refreshToken = refreshToken;
@@ -143,7 +142,7 @@ async function loginUser(req, res, next) {
         const session = await sessionModel.create({
           userId: user._id,
           refreshToken: user.refreshToken,
-          device: getDevice(req) + "-" + os.hostname(),
+          device: getDevice(req),
           browser: req.useragent.browser,
           ipAddress: req.ip,
           loginTime,
@@ -157,14 +156,14 @@ async function loginUser(req, res, next) {
           httpOnly: true,
           sameSite: "lax",
           secure: false,
-          maxAge: 15 * 60 * 1000,
+          maxAge: `${process.env.ACCESS_TOKEN_AGE}`,
         });
 
         res.cookie("refreshToken", refreshToken, {
           httpOnly: true,
           sameSite: "lax",
           secure: false,
-          maxAge: 7 * 24 * 60 * 60 * 1000,
+          maxAge: process.env.REFRESH_TOKEN_AGE,
         });
 
         return res.status(200).json({
@@ -205,14 +204,14 @@ async function toRefreshToken(req, res, next) {
     const accessToken = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
       process.env.ACCESS_TOKEN_SECRET,
-      { expiresIn: "1m" },
+      { expiresIn: `${process.env.ACCESS_TOKEN_EXPIRE}` },
     );
 
     res.cookie("accessToken", accessToken, {
       httpOnly: true,
       sameSite: "lax",
       secure: false,
-      maxAge: 15 * 60 * 1000,
+      maxAge: process.env.ACCESS_TOKEN_AGE,
     });
 
     res.status(200).json({
@@ -220,11 +219,20 @@ async function toRefreshToken(req, res, next) {
       message: "Token refreshed successfully.",
     });
   } catch (err) {
-    if (err.name === "TokenExpiredError")
+    if (err.name === "TokenExpiredError") {
+      await sessionModel.findOneAndUpdate(
+        {
+          refreshToken: req.cookies.refreshToken,
+          isActive: true,
+        },
+        { isActive: false, logoutTime: new Date() },
+        { returnDocument: "after" },
+      );
       return res.status(401).json({
         success: false,
         message: "Session Ended",
       });
+    }
     next(err);
   }
 }
@@ -250,6 +258,12 @@ async function logout(req, res, next) {
       { returnDocument: "after" },
     );
 
+    if (!user)
+      return res.status(404).json({
+        success: false,
+        message: "User not found.",
+      });
+
     let userSession = await sessionModel.findOneAndUpdate(
       { userId: user._id, refreshToken: refreshToken },
       {
@@ -258,12 +272,6 @@ async function logout(req, res, next) {
         isActive: false,
       },
     );
-
-    if (!user)
-      return res.status(404).json({
-        success: false,
-        message: "User not found.",
-      });
 
     res.clearCookie("accessToken", {
       httpOnly: true,
@@ -287,3 +295,4 @@ async function logout(req, res, next) {
 }
 
 export { loginUser, logout, registerUser, toRefreshToken };
+
