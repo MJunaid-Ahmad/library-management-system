@@ -85,7 +85,6 @@ async function loginUser(req, res, next) {
           return res.status(404).json({
             success: false,
             message: "No user exists with this mail !",
-            OS: os.platform,
           });
         }
 
@@ -101,7 +100,7 @@ async function loginUser(req, res, next) {
         const accessToken = jwt.sign(
           { id: user._id, email: user.email, role: user.role },
           process.env.ACCESS_TOKEN_SECRET,
-          { expiresIn: "15m" },
+          { expiresIn: "1m" },
         );
 
         const refreshToken = jwt.sign(
@@ -112,7 +111,7 @@ async function loginUser(req, res, next) {
 
         user.refreshToken = refreshToken;
         await user.save();
-        
+  
         //       Session
 
         let sessionAlreadyExists = await sessionModel.findOne({
@@ -121,26 +120,24 @@ async function loginUser(req, res, next) {
         });
 
         if (sessionAlreadyExists) {
-          console.log(sessionAlreadyExists)
           let session = await sessionModel.findOneAndUpdate(
             { userId: user._id , isActive : true},
-            { lastActivity: new Date() , refreshToken : refreshToken  },
+            { lastActivity: new Date() , isActive : false , logoutTime : new Date() },
             { returnDocument: "after" },
           );
-          console.log(session)
-        } else {
+        } 
+
           let loginTime = new Date();
           let expiresAt = new Date(loginTime);
           expiresAt.setDate(expiresAt.getDate() + 7);
 
           let getDevice = (req) => {
-            console.log(req.useragent);
             if (req.useragent.isMobile) return "Mobile";
             if (req.useragent.isDesktop) return "Laptop";
             if (req.useragent.isTablet) return "Tablet";
             return "Unknown";
           };
-
+          
           const session = await sessionModel.create({
             userId: user._id,
             refreshToken: user.refreshToken,
@@ -153,7 +150,7 @@ async function loginUser(req, res, next) {
             isActive: true,
             logoutTime: null,
           });
-        }
+        
 
         res.cookie("accessToken", accessToken, {
           httpOnly: true,
@@ -187,6 +184,7 @@ async function loginUser(req, res, next) {
 async function toRefreshToken(req, res, next) {
   try {
     let refreshToken = req.cookies.refreshToken;
+
     if (!refreshToken)
       return res.status(401).json({
         success: false,
@@ -194,11 +192,6 @@ async function toRefreshToken(req, res, next) {
       });
 
     const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-    if (!decoded)
-      return res.status(403).json({
-        success: false,
-        message: "Forbidden",
-      });
 
     const user = await userModel.findById(decoded.id);
     if (!user || user.refreshToken !== refreshToken)
@@ -210,7 +203,7 @@ async function toRefreshToken(req, res, next) {
     const accessToken = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
       process.env.ACCESS_TOKEN_SECRET,
-      { expiresIn: "15m" },
+      { expiresIn: "1m" },
     );
 
     res.cookie("accessToken", accessToken, {
@@ -249,13 +242,14 @@ async function logout(req, res, next) {
       { refreshToken: null },
       { returnDocument: "after" },
     );
+
+
     let userSession = await sessionModel.findOneAndUpdate(
       { userId: user._id, refreshToken: refreshToken },
       {
         lastActivity: new Date(),
         logoutTime: new Date(),
         isActive: false,
-        refreshToken: null,
       },
     );
 

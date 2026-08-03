@@ -1,46 +1,175 @@
 import dotenv from "dotenv";
+import userModel from "../model/userModel.js";
 import jwt from "jsonwebtoken";
 import sessionModel from "../model/sessionModel.js";
 dotenv.config();
 
 async function isLogin(req, res, next) {
-  try {
-    const accessToken = req.cookies.accessToken;
+  const accessToken = req.cookies.accessToken;
+  const refreshToken = req.cookies.refreshToken;
 
-    if (!accessToken) {
+  try {
+    if ((!accessToken && !refreshToken) || !refreshToken ) {
       return res.status(401).json({
         success: false,
         message: "Unauthorized",
       });
     }
 
-    const decoded = await jwt.verify(
+    const decoded =  jwt.verify(
       accessToken,
       process.env.ACCESS_TOKEN_SECRET,
     );
 
     let session = await sessionModel.findOneAndUpdate(
-      { userId: decoded.id ,  refreshToken : req.cookies.refreshToken },
+      { userId: decoded.id, refreshToken: req.cookies.refreshToken },
       { lastActivity: new Date() },
-      { returnDocument: "after"  },
+      { returnDocument: "after" },
     );
+
+    if (!session)
+      return res.status(302).json({
+        success: false,
+        meesage: "Session Ended",
+      });
 
     req.user = decoded;
     next();
-
   } catch (err) {
-    return res.status(401).json({
-      success: false,
-      message: "Invalid or expired token",
-    });
+    try {
+
+      if (err.name === "TokenExpiredError" || !accessToken ) {
+
+        const decoded = jwt.verify(
+          refreshToken,
+          process.env.REFRESH_TOKEN_SECRET,
+        );
+
+        const user = await userModel.findById(decoded.id);
+
+        if (!user || user.refreshToken !== refreshToken)
+          return res.status(403).json({
+            success: false,
+            message: "Forbidden",
+          });
+
+        const newAccessToken = jwt.sign(
+          { id: user._id, email: user.email, role: user.role },
+          process.env.ACCESS_TOKEN_SECRET,
+          { expiresIn: "1m" },
+        );
+
+        let session = await sessionModel.findOneAndUpdate(
+          {
+            userId: decoded.id,
+            refreshToken: req.cookies.refreshToken,
+            isActive: true,
+          },
+          { lastActivity: new Date() },
+          { returnDocument: "after" },
+        );
+
+        if (!session)
+          return res.status(401).json({
+            success: false,
+            meesage: "Session Ended",
+          });
+
+        res.cookie("accessToken", newAccessToken, {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: false,
+          maxAge: 15 * 60 * 1000,
+        });
+
+        req.user = decoded;
+        next();
+        
+      } else {
+        next(err);
+      }
+    } catch (err) {
+      next(err);
+    }
   }
 }
+
+// async function isLogin(req, res, next) {
+//   const accessToken = req.cookies.accessToken;
+//   const refreshToken = req.cookies.refreshToken;
+
+//   try {
+//     if (!accessToken && !refreshToken) {
+//       return res.status(401).json({
+//         success: false,
+//         message: "Unauthorized",
+//       });
+//     }
+
+//     const decoded = await jwt.verify(
+//       accessToken,
+//       process.env.ACCESS_TOKEN_SECRET,
+//     );
+//     let session = await sessionModel.findOneAndUpdate(
+//       { userId: decoded.id, refreshToken: req.cookies.refreshToken },
+//       { lastActivity: new Date() },
+//       { returnDocument: "after" },
+//     );
+
+//     req.user = decoded;
+//     console.log("1");
+
+//     next();
+//   } catch (err) {
+//     console.log("2");
+//     if (err.name === "TokenExpiredError") {
+
+//       console.log("Expire Token Detected");
+
+//       const decoded = jwt.verify(
+//         refreshToken,
+//         process.env.REFRESH_TOKEN_SECRET,
+//       );
+
+//       const user = await userModel.findById(decoded.id);
+
+//       if (!user || user.refreshToken !== refreshToken)
+//         return res.status(403).json({
+//           success: false,
+//           message: "Forbidden",
+//         });
+
+//       const accessToken = jwt.sign(
+//         { id: user._id, email: user.email, role: user.role },
+//         process.env.ACCESS_TOKEN_SECRET,
+//         { expiresIn: "1m" },
+//       );
+//       console.log("3");
+//       res.cookie("accessToken", accessToken, {
+//         httpOnly: true,
+//         sameSite: "lax",
+//         secure: false,
+//         maxAge: 15 * 60 * 1000,
+//       });
+//       console.log("4");
+//       next();
+//     } else {
+//       console.log("5");
+//       return res.status(401).json({
+//         success: false,
+//         message: "Invalid Token",
+//         error: err.message,
+//       });
+//     }
+//   }
+// }
 
 async function isAdmin(req, res, next) {
   try {
     const accessToken = req.cookies.accessToken;
+    const refreshToken = req.cookies.refreshToken;
 
-    if (!accessToken) {
+    if (!accessToken && !refreshToken) {
       return res.status(401).json({
         success: false,
         message: "Unauthorized",
@@ -48,29 +177,58 @@ async function isAdmin(req, res, next) {
     }
 
     const decoded = jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET);
-    if (!(decoded.role === "admin")) 
+
+    if (!(decoded.role === "admin"))
       return res.status(403).json({
         success: false,
         message: "Only admin can access",
       });
-    
+
     let session = await sessionModel.findOneAndUpdate(
-      { userId: decoded.id ,  refreshToken : req.cookies.refreshToken },
+      { userId: decoded.id, refreshToken: req.cookies.refreshToken },
       { lastActivity: new Date() },
-      { returnDocument: "after"  },
+      { returnDocument: "after" },
     );
 
     req.user = decoded;
     next();
-
   } catch (err) {
-    return res.status(401).json({
-      success: false,
-      message: "Invalid or expired token",
-      error: err.message,
+    if (err.name !== "TokenExpiredError") {
+      return res.status(401).json({
+        success: false,
+        error: err.message,
+      });
+    }
+
+    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+
+    const user = await userModel.findById(decoded.id);
+    if (!user || user.refreshToken !== refreshToken)
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden",
+      });
+
+    const accessToken = jwt.sign(
+      { id: user._id, email: user.email, role: user.role },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: "15m" },
+    );
+
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: false,
+      maxAge: 15 * 60 * 1000,
     });
+
+    res.status(200).json({
+      success: true,
+      message: "Token refreshed successfully.",
+    });
+
+    next();
   }
 }
 
 export { isAdmin, isLogin };
-
