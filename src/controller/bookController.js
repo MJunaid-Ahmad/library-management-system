@@ -1,5 +1,4 @@
 import bookModel from "../model/bookModel.js";
-import userModel from "../model/userModel.js";
 import deleteImage from "../utils/deleteImage.js";
 
 async function addBook(req, res, next) {

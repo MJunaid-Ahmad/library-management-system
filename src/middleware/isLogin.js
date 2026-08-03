@@ -1,7 +1,7 @@
-import dotenv from "dotenv";
+import sessionModel from "../model/sessionModel.js";
 import userModel from "../model/userModel.js";
 import jwt from "jsonwebtoken";
-import sessionModel from "../model/sessionModel.js";
+import dotenv from "dotenv";
 dotenv.config();
 
 async function isLogin(req, res, next) {
@@ -259,3 +259,4 @@ async function isAdmin(req, res, next) {
 // }
 
 export { isAdmin, isLogin };
+

@@ -5,10 +5,10 @@ import uploadImage from "../middleware/uploadImage.js";
 
 const router = express.Router() ;
 
-router.post("/addbook" , isAdmin , uploadImage ,  addBook)
-router.delete("/deletebook/:isbn" , isAdmin , deleteBook )
-router.patch("/updatebook/:isbn" , isAdmin , uploadImage, updateBook )
-router.patch("/isavailable/:isbn/:activity" , isAdmin , isAvailable)
+router.post("/addbook" , isLogin , isAdmin , uploadImage ,  addBook)
+router.delete("/deletebook/:isbn" , isLogin , isAdmin , deleteBook )
+router.patch("/updatebook/:isbn" , isLogin , isAdmin , uploadImage, updateBook )
+router.patch("/isavailable/:isbn/:activity" , isLogin , isAdmin , isAvailable)
 
 router.get("/search" , isLogin  , searchBooks)
 router.get("/sort" , isLogin , sortBooks)

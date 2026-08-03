@@ -11,5 +11,4 @@ async function deleteImage(url) {
   }
   
 }
-
 export default deleteImage;
