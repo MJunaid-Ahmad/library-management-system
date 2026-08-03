@@ -9,17 +9,14 @@ async function isLogin(req, res, next) {
   const refreshToken = req.cookies.refreshToken;
 
   try {
-    if ((!accessToken && !refreshToken) || !refreshToken ) {
+    if ((!accessToken && !refreshToken) || !refreshToken) {
       return res.status(401).json({
         success: false,
         message: "Unauthorized",
       });
     }
 
-    const decoded =  jwt.verify(
-      accessToken,
-      process.env.ACCESS_TOKEN_SECRET,
-    );
+    const decoded = jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET);
 
     let session = await sessionModel.findOneAndUpdate(
       { userId: decoded.id, refreshToken: req.cookies.refreshToken },
@@ -30,7 +27,7 @@ async function isLogin(req, res, next) {
     if (!session)
       return res.status(302).json({
         success: false,
-        meesage: "Session Ended",
+        message: "Session Ended",
       });
 
     req.user = decoded;
@@ -38,8 +35,7 @@ async function isLogin(req, res, next) {
   } catch (err) {
     try {
 
-      if (err.name === "TokenExpiredError" || !accessToken ) {
-
+      if (err.name === "TokenExpiredError" || !accessToken) {
         const decoded = jwt.verify(
           refreshToken,
           process.env.REFRESH_TOKEN_SECRET,
@@ -84,13 +80,21 @@ async function isLogin(req, res, next) {
 
         req.user = decoded;
         next();
-        
       } else {
-        next(err);
+        next(err); 
       }
+
     } catch (err) {
+      if (err.name === "TokenExpiredError"){
+        return res.status(401).json({
+          success: false,
+          message: "Session Ended",
+        });
+      }
+        
       next(err);
     }
+    
   }
 }
 

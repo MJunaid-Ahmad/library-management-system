@@ -30,38 +30,36 @@ async function registerUser(req, res, next) {
               role: role,
             });
 
-            const accessToken = jwt.sign(
-              { id: newUser._id, email: newUser.email, role: newUser.role },
-              process.env.ACCESS_TOKEN_SECRET,
-              { expiresIn: "15m" },
-            );
-
-            const refreshToken = jwt.sign(
-              { id: newUser._id, email: newUser.email, role: newUser.role },
-              process.env.REFRESH_TOKEN_SECRET,
-              { expiresIn: "7d" },
-            );
-
-            newUser.refreshToken = refreshToken;
-            await newUser.save();
-
-            res.cookie("accessToken", accessToken, {
-              httpOnly: true,
-              sameSite: "lax",
-              secure: false,
-              maxAge: 15 * 60 * 1000,
-            });
-
-            res.cookie("refreshToken", refreshToken, {
-              httpOnly: true,
-              sameSite: "lax",
-              secure: false,
-              maxAge: 7 * 24 * 60 * 60 * 1000,
-            });
+            {
+              // const accessToken = jwt.sign(
+              //   { id: newUser._id, email: newUser.email, role: newUser.role },
+              //   process.env.ACCESS_TOKEN_SECRET,
+              //   { expiresIn: "15m" },
+              // );
+              // const refreshToken = jwt.sign(
+              //   { id: newUser._id, email: newUser.email, role: newUser.role },
+              //   process.env.REFRESH_TOKEN_SECRET,
+              //   { expiresIn: "7d" },
+              // );
+              // newUser.refreshToken = refreshToken;
+              // await newUser.save();
+              // res.cookie("accessToken", accessToken, {
+              //   httpOnly: true,
+              //   sameSite: "lax",
+              //   secure: false,
+              //   maxAge: 15 * 60 * 1000,
+              // });
+              // res.cookie("refreshToken", refreshToken, {
+              //   httpOnly: true,
+              //   sameSite: "lax",
+              //   secure: false,
+              //   maxAge: 7 * 24 * 60 * 60 * 1000,
+              // });
+            }
 
             return res.status(200).json({
               success: true,
-              message: "User registered Successfully",
+              message: "User registered Successfully.",
             });
           }
 
@@ -111,7 +109,7 @@ async function loginUser(req, res, next) {
 
         user.refreshToken = refreshToken;
         await user.save();
-  
+
         //       Session
 
         let sessionAlreadyExists = await sessionModel.findOne({
@@ -121,36 +119,39 @@ async function loginUser(req, res, next) {
 
         if (sessionAlreadyExists) {
           let session = await sessionModel.findOneAndUpdate(
-            { userId: user._id , isActive : true},
-            { lastActivity: new Date() , isActive : false , logoutTime : new Date() },
+            { userId: user._id, isActive: true },
+            {
+              lastActivity: new Date(),
+              isActive: false,
+              logoutTime: new Date(),
+            },
             { returnDocument: "after" },
           );
-        } 
+        }
 
-          let loginTime = new Date();
-          let expiresAt = new Date(loginTime);
-          expiresAt.setDate(expiresAt.getDate() + 7);
+        let loginTime = new Date();
+        let expiresAt = new Date(loginTime);
+        expiresAt.setDate(expiresAt.getDate() + 7);
 
-          let getDevice = (req) => {
-            if (req.useragent.isMobile) return "Mobile";
-            if (req.useragent.isDesktop) return "Laptop";
-            if (req.useragent.isTablet) return "Tablet";
-            return "Unknown";
-          };
-          
-          const session = await sessionModel.create({
-            userId: user._id,
-            refreshToken: user.refreshToken,
-            device: getDevice(req) + "-" + os.hostname(),
-            browser: req.useragent.browser,
-            ipAddress: req.ip,
-            loginTime,
-            lastActivity: new Date(),
-            expiresAt,
-            isActive: true,
-            logoutTime: null,
-          });
-        
+        let getDevice = (req) => {
+          if (req.useragent.isMobile) return "Mobile";
+          if (req.useragent.isDesktop) return "Laptop";
+          if (req.useragent.isTablet) return "Tablet";
+          return "Unknown";
+        };
+
+        const session = await sessionModel.create({
+          userId: user._id,
+          refreshToken: user.refreshToken,
+          device: getDevice(req) + "-" + os.hostname(),
+          browser: req.useragent.browser,
+          ipAddress: req.ip,
+          loginTime,
+          lastActivity: new Date(),
+          expiresAt,
+          isActive: true,
+          logoutTime: null,
+        });
 
         res.cookie("accessToken", accessToken, {
           httpOnly: true,
@@ -194,6 +195,7 @@ async function toRefreshToken(req, res, next) {
     const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
 
     const user = await userModel.findById(decoded.id);
+
     if (!user || user.refreshToken !== refreshToken)
       return res.status(403).json({
         success: false,
@@ -218,6 +220,11 @@ async function toRefreshToken(req, res, next) {
       message: "Token refreshed successfully.",
     });
   } catch (err) {
+    if (err.name === "TokenExpiredError")
+      return res.status(401).json({
+        success: false,
+        message: "Session Ended",
+      });
     next(err);
   }
 }
@@ -242,7 +249,6 @@ async function logout(req, res, next) {
       { refreshToken: null },
       { returnDocument: "after" },
     );
-
 
     let userSession = await sessionModel.findOneAndUpdate(
       { userId: user._id, refreshToken: refreshToken },
@@ -281,4 +287,3 @@ async function logout(req, res, next) {
 }
 
 export { loginUser, logout, registerUser, toRefreshToken };
-
