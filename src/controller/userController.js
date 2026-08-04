@@ -141,7 +141,7 @@ async function loginUser(req, res, next) {
       httpOnly: true,
       sameSite: "lax",
       secure: false,
-      maxAge: process.env.ACCESS_TOKEN_AGE ,
+      maxAge: process.env.ACCESS_TOKEN_AGE,
     });
 
     res.cookie("refreshToken", refreshToken, {
@@ -155,6 +155,34 @@ async function loginUser(req, res, next) {
       success: true,
       message: "Login Successfully....",
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function deleteUser(req, res, next) {
+  try {
+    let { id } = req.params;
+
+    if (!id || id.trim() === "")
+      return res.status(400).json({
+        success: false,
+        messaeg: "Invalid ID.",
+      });
+
+    let user = await userModel.findOne({ _id : id })
+    if(!user)
+       return res.status(404).json({
+        success: false,
+        message: "No user exists with this id ",
+      });
+    
+      await userModel.findByIdAndDelete( id )
+      await sessionModel.deleteMany({ userId : id })
+      res.status(200).json({
+        success : true , 
+        message : "User deleted successful"
+      })
   } catch (err) {
     next(err);
   }
@@ -188,7 +216,6 @@ async function toRefreshToken(req, res, next) {
       success: true,
       message: "Token refreshed successfully.",
     });
-
   } catch (err) {
     if (err.name === "TokenExpiredError") {
       await sessionModel.findOneAndUpdate(
@@ -223,9 +250,9 @@ async function logout(req, res, next) {
       refreshToken,
       process.env.REFRESH_TOKEN_SECRET,
     );
-  
+
     let userSession = await sessionModel.findOneAndUpdate(
-      { userId: decoded.id , refreshToken: refreshToken },
+      { userId: decoded.id, refreshToken: refreshToken },
       {
         lastActivity: new Date(),
         logoutTime: new Date(),
@@ -254,4 +281,4 @@ async function logout(req, res, next) {
   }
 }
 
-export { loginUser, logout, registerUser, toRefreshToken };
+export { loginUser, logout, registerUser, deleteUser, toRefreshToken };
