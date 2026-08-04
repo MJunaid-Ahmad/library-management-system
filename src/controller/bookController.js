@@ -6,8 +6,8 @@ async function addBook(req, res, next) {
     let { title, author, category, isbn, publish, isAvailable } = req.body;
     let valid = true;
 
-    if (!req.file) valid = false ;
-    
+    if (!req.file) valid = false;
+
     if (title === undefined || title === "") valid = false;
 
     if (author === undefined || author === "") valid = false;
@@ -77,7 +77,6 @@ async function deleteBook(req, res, next) {
 
 async function updateBook(req, res, next) {
   try {
-    console.log(req.body);
     let { title, author, category, isbn, publish, isAvailable } = req.body;
     let updatedData = {};
 
@@ -85,8 +84,7 @@ async function updateBook(req, res, next) {
 
     if (!(author === undefined || author === "")) updatedData.author = author;
 
-    if (!(category === undefined || category === ""))
-      updatedData.category = category;
+    if (!(category === undefined || category === "")) updatedData.category = category;
 
     if (!(isbn === undefined || isbn === "")) updatedData.isbn = isbn;
 

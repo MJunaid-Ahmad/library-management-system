@@ -46,7 +46,7 @@ async function isLogin(req, res, next) {
         );
 
         const user = await userModel.findById(decoded.id);
-        console.log(user)
+        
         const newAccessToken = jwt.sign(
           { id: user._id, email: user.email, role: user.role },
           process.env.ACCESS_TOKEN_SECRET,
