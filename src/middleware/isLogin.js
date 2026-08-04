@@ -9,7 +9,7 @@ async function isLogin(req, res, next) {
   const refreshToken = req.cookies.refreshToken;
 
   try {
-    if ((!accessToken && !refreshToken) || !refreshToken) {
+    if (!refreshToken) {
       return res.status(401).json({
         success: false,
         message: "Unauthorized",
@@ -37,6 +37,7 @@ async function isLogin(req, res, next) {
     req.user = decoded;
     next();
   } catch (err) {
+    
     try {
       if (err.name === "TokenExpiredError" || !accessToken) {
         const decoded = jwt.verify(
@@ -45,13 +46,7 @@ async function isLogin(req, res, next) {
         );
 
         const user = await userModel.findById(decoded.id);
-
-        if (!user || user.refreshToken !== refreshToken)
-          return res.status(403).json({
-            success: false,
-            message: "Forbidden",
-          });
-
+        
         const newAccessToken = jwt.sign(
           { id: user._id, email: user.email, role: user.role },
           process.env.ACCESS_TOKEN_SECRET,

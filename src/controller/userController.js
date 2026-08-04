@@ -8,63 +8,41 @@ dotenv.config();
 async function registerUser(req, res, next) {
   try {
     let { name, email, password, role } = req.body;
+    let valid = true;
 
-    if (!(name === undefined || name === ""))
-      if (!!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-        if (!(password === undefined || password === ""))
-          if (!(role === "")) {
-            if (await userModel.exists({ email })) {
-              return res.status(409).json({
-                success: false,
-                message: "User already exists",
-              });
-            }
+    if (name === undefined || name === "") valid = false;
 
-            let hashedPassword = await bcrypt.hash(password, 10);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) valid = false;
 
-            let newUser = await userModel.create({
-              name: name,
-              email: email,
-              password: hashedPassword,
-              role: role,
-            });
+    if (password === undefined || password === "") valid = false;
 
-            {
-              // const accessToken = jwt.sign(
-              //   { id: newUser._id, email: newUser.email, role: newUser.role },
-              //   process.env.ACCESS_TOKEN_SECRET,
-              //   { expiresIn: "15m" },
-              // );
-              // const refreshToken = jwt.sign(
-              //   { id: newUser._id, email: newUser.email, role: newUser.role },
-              //   process.env.REFRESH_TOKEN_SECRET,
-              //   { expiresIn: "7d" },
-              // );
-              // newUser.refreshToken = refreshToken;
-              // await newUser.save();
-              // res.cookie("accessToken", accessToken, {
-              //   httpOnly: true,
-              //   sameSite: "lax",
-              //   secure: false,
-              //   maxAge: 15 * 60 * 1000,
-              // });
-              // res.cookie("refreshToken", refreshToken, {
-              //   httpOnly: true,
-              //   sameSite: "lax",
-              //   secure: false,
-              //   maxAge: 7 * 24 * 60 * 60 * 1000,
-              // });
-            }
+    if (role === "") valid = false;
 
-            return res.status(200).json({
-              success: true,
-              message: "User registered Successfully.",
-            });
-          }
+    if (!valid)
+      return res.status(400).json({
+        success: false,
+        message: "Invalid input data.",
+      });
 
-    res.status(400).json({
-      success: false,
-      message: "Invalid input data.",
+    if (await userModel.exists({ email })) {
+      return res.status(409).json({
+        success: false,
+        message: "User already exists",
+      });
+    }
+
+    let hashedPassword = await bcrypt.hash(password, 10);
+
+    let newUser = await userModel.create({
+      name: name,
+      email: email,
+      password: hashedPassword,
+      role: role,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "User registered Successfully.",
     });
   } catch (err) {
     next(err);
@@ -74,107 +52,108 @@ async function registerUser(req, res, next) {
 async function loginUser(req, res, next) {
   try {
     let { email, password } = req.body;
-    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-      if (!(password === undefined || password === "")) {
-        let user = await userModel.findOne({ email });
+    let valid = true;
 
-        if (!user) {
-          return res.status(404).json({
-            success: false,
-            message: "No user exists with this mail !",
-          });
-        }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) valid = false;
 
-        let isValidPassword = await bcrypt.compare(password, user.password);
+    if (password === undefined || password === "") valid = false;
 
-        if (!isValidPassword) {
-          return res.status(401).json({
-            success: false,
-            message: "Invalid password",
-          });
-        }
+    if (!valid)
+      return res.status(400).json({
+        success: false,
+        message: "Invalid input data.",
+      });
 
-        const accessToken = jwt.sign(
-          { id: user._id, email: user.email, role: user.role },
-          process.env.ACCESS_TOKEN_SECRET,
-          { expiresIn:process.env.ACCESS_TOKEN_EXPIRE },
-        );
+    let user = await userModel.findOne({ email });
 
-        const refreshToken = jwt.sign(
-          { id: user._id, email: user.email, role: user.role },
-          process.env.REFRESH_TOKEN_SECRET,
-          { expiresIn:process.env.REFRESH_TOKEN_EXPIRE },
-        );
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "No user exists with this mail !",
+      });
+    }
 
-        user.refreshToken = refreshToken;
-        await user.save();
+    let isValidPassword = await bcrypt.compare(password, user.password);
 
-        //       Session
+    if (!isValidPassword) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid password",
+      });
+    }
 
-        let sessionAlreadyExists = await sessionModel.findOne({
-          userId: user._id,
-          isActive: true,
-        });
+    const accessToken = jwt.sign(
+      { id: user._id, email: user.email, role: user.role },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: process.env.ACCESS_TOKEN_EXPIRE },
+    );
 
-        if (sessionAlreadyExists) {
-          let session = await sessionModel.findOneAndUpdate(
-            { userId: user._id, isActive: true },
-            {
-              lastActivity: new Date(),
-              isActive: false,
-              logoutTime: new Date(),
-            },
-            { returnDocument: "after" },
-          );
-        }
+    const refreshToken = jwt.sign(
+      { id: user._id, token_type: "refresh" },
+      process.env.REFRESH_TOKEN_SECRET,
+      { expiresIn: process.env.REFRESH_TOKEN_EXPIRE },
+    );
 
-        let loginTime = new Date();
-        let expiresAt = new Date(loginTime);
-        expiresAt.setDate(expiresAt.getDate() + 7);
+    //       Session
 
-        let getDevice = (req) => {
-          if (req.useragent.isMobile) return "Mobile";
-          if (req.useragent.isDesktop) return "Laptop";
-          if (req.useragent.isTablet) return "Tablet";
-          return "Unknown";
-        };
+    let sessionAlreadyExists = await sessionModel.findOne({
+      userId: user._id,
+      isActive: true,
+    });
 
-        const session = await sessionModel.create({
-          userId: user._id,
-          refreshToken: user.refreshToken,
-          device: getDevice(req),
-          browser: req.useragent.browser,
-          ipAddress: req.ip,
-          loginTime,
+    if (sessionAlreadyExists) {
+      let session = await sessionModel.findOneAndUpdate(
+        { userId: user._id, isActive: true },
+        {
           lastActivity: new Date(),
-          expiresAt,
-          isActive: true,
-          logoutTime: null,
-        });
+          isActive: false,
+          logoutTime: new Date(),
+        },
+        { returnDocument: "after" },
+      );
+    }
 
-        res.cookie("accessToken", accessToken, {
-          httpOnly: true,
-          sameSite: "lax",
-          secure: false,
-          maxAge: `${process.env.ACCESS_TOKEN_AGE}`,
-        });
+    let loginTime = new Date();
+    let expiresAt = new Date(loginTime);
+    expiresAt.setDate(expiresAt.getDate() + 7);
 
-        res.cookie("refreshToken", refreshToken, {
-          httpOnly: true,
-          sameSite: "lax",
-          secure: false,
-          maxAge: process.env.REFRESH_TOKEN_AGE,
-        });
+    let getDevice = (req) => {
+      if (req.useragent.isMobile) return "Mobile";
+      if (req.useragent.isDesktop) return "Laptop";
+      if (req.useragent.isTablet) return "Tablet";
+      return "Unknown";
+    };
 
-        return res.status(200).json({
-          success: true,
-          message: "Login Successfully....",
-        });
-      }
+    const session = await sessionModel.create({
+      userId: user._id,
+      refreshToken: refreshToken,
+      device: getDevice(req),
+      browser: req.useragent.browser,
+      ipAddress: req.ip,
+      loginTime,
+      lastActivity: new Date(),
+      expiresAt,
+      isActive: true,
+      logoutTime: null,
+    });
 
-    res.status(400).json({
-      success: false,
-      message: "Invalid input data.",
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: false,
+      maxAge: process.env.ACCESS_TOKEN_AGE ,
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: false,
+      maxAge: process.env.REFRESH_TOKEN_AGE,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Login Successfully....",
     });
   } catch (err) {
     next(err);
@@ -192,15 +171,6 @@ async function toRefreshToken(req, res, next) {
       });
 
     const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-
-    const user = await userModel.findById(decoded.id);
-
-    if (!user || user.refreshToken !== refreshToken)
-      return res.status(403).json({
-        success: false,
-        message: "Forbidden",
-      });
-
     const accessToken = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
       process.env.ACCESS_TOKEN_SECRET,
@@ -218,6 +188,7 @@ async function toRefreshToken(req, res, next) {
       success: true,
       message: "Token refreshed successfully.",
     });
+
   } catch (err) {
     if (err.name === "TokenExpiredError") {
       await sessionModel.findOneAndUpdate(
@@ -228,6 +199,7 @@ async function toRefreshToken(req, res, next) {
         { isActive: false, logoutTime: new Date() },
         { returnDocument: "after" },
       );
+
       return res.status(401).json({
         success: false,
         message: "Session Ended",
@@ -251,21 +223,9 @@ async function logout(req, res, next) {
       refreshToken,
       process.env.REFRESH_TOKEN_SECRET,
     );
-
-    let user = await userModel.findOneAndUpdate(
-      { email: decoded.email },
-      { refreshToken: null },
-      { returnDocument: "after" },
-    );
-
-    if (!user)
-      return res.status(404).json({
-        success: false,
-        message: "User not found.",
-      });
-
+  
     let userSession = await sessionModel.findOneAndUpdate(
-      { userId: user._id, refreshToken: refreshToken },
+      { userId: decoded.id , refreshToken: refreshToken },
       {
         lastActivity: new Date(),
         logoutTime: new Date(),
@@ -295,4 +255,3 @@ async function logout(req, res, next) {
 }
 
 export { loginUser, logout, registerUser, toRefreshToken };
-

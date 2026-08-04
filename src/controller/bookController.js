@@ -4,40 +4,47 @@ import deleteImage from "../utils/deleteImage.js";
 async function addBook(req, res, next) {
   try {
     let { title, author, category, isbn, publish, isAvailable } = req.body;
+    let valid = true;
 
-    if (req.file)
-      if (!(title === undefined || title === ""))
-        if (!(author === undefined || author === ""))
-          if (!(category === undefined || category === ""))
-            if (!(isbn === undefined || isbn === ""))
-              if (!(publish === undefined || publish === "")) {
-                if (await bookModel.exists({ isbn }))
-                  return res.status(409).json({
-                    success: false,
-                    message: "Book with this ISBN already exists",
-                  });
+    if (!req.file) valid = false ;
+    
+    if (title === undefined || title === "") valid = false;
 
-                let book = await bookModel.create({
-                  title,
-                  author,
-                  coverImage: req.file.path,
-                  category,
-                  isbn,
-                  publish,
-                  isAvailable,
-                });
+    if (author === undefined || author === "") valid = false;
 
-                return res.status(201).json({
-                  success: true,
-                  message: "Book added successfully",
-                });
-              }
+    if (category === undefined || category === "") valid = false;
 
-    if (req.file) deleteImage(req.file.path);
+    if (isbn === undefined || isbn === "") valid = false;
 
-    res.status(400).json({
-      success: false,
-      message: "Invalid input data.",
+    if (publish === undefined || publish === "") valid = false;
+
+    if (!valid) {
+      if (req.file) deleteImage(req.file.path);
+      res.status(400).json({
+        success: false,
+        message: "Invalid input data.",
+      });
+    }
+
+    if (await bookModel.exists({ isbn }))
+      return res.status(409).json({
+        success: false,
+        message: "Book with this ISBN already exists",
+      });
+
+    let book = await bookModel.create({
+      title,
+      author,
+      coverImage: req.file.path,
+      category,
+      isbn,
+      publish,
+      isAvailable,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Book added successfully",
     });
   } catch (err) {
     next(err);
@@ -122,12 +129,12 @@ async function searchBooks(req, res, next) {
     let page =
       req.query.page === undefined || req.query.page === ""
         ? 1
-        : Number(req.query.page) ;
+        : Number(req.query.page);
 
     let limit =
       req.query.limit === undefined || req.query.page === ""
         ? 3
-        : Number(req.query.limit) ;
+        : Number(req.query.limit);
 
     if (page <= 0 || isNaN(page))
       return res.status(404).json({
@@ -191,7 +198,7 @@ async function sortBooks(req, res, next) {
       req.query.page === undefined || req.query.page === ""
         ? 1
         : Number(req.query.page);
-        
+
     let limit =
       req.query.limit === undefined || req.query.page === ""
         ? 3
@@ -221,9 +228,17 @@ async function sortBooks(req, res, next) {
 
     let sortedBooks;
     if (sort === "title") {
-      sortedBooks = await bookModel.find().sort({ title: 1 }).skip(skip).limit(limit);
+      sortedBooks = await bookModel
+        .find()
+        .sort({ title: 1 })
+        .skip(skip)
+        .limit(limit);
     } else if (sort === "publish") {
-      sortedBooks = await bookModel.find().sort({ publish: 1 }).skip(skip).limit(limit);
+      sortedBooks = await bookModel
+        .find()
+        .sort({ publish: 1 })
+        .skip(skip)
+        .limit(limit);
     } else {
       return res.status(400).json({
         success: false,
@@ -279,6 +294,5 @@ async function isAvailable(req, res, next) {
     next(err);
   }
 }
- 
-export { addBook, deleteBook, isAvailable, searchBooks, sortBooks, updateBook };
 
+export { addBook, deleteBook, isAvailable, searchBooks, sortBooks, updateBook };
