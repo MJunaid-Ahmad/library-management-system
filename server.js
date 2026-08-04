@@ -1,4 +1,4 @@
-import expiredSessionCleanup from "./src/utils/sessionexpiry.js";
+import expiredSessionCleanup from "./src/utils/sessionExpiry.js";
 import connectDB from "./src/db/connectDB.js";
 import app from "./src/app.js";
 import dotenv from "dotenv";

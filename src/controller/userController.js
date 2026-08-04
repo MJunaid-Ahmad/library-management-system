@@ -114,8 +114,12 @@ async function loginUser(req, res, next) {
     }
 
     let loginTime = new Date();
+    // let expiresAt = new Date(loginTime);
+    // expiresAt.setDate(expiresAt.getDate() + 7);
+        
+    
     let expiresAt = new Date(loginTime);
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    expiresAt.setSeconds(expiresAt.getSeconds() + 20);
 
     let getDevice = (req) => {
       if (req.useragent.isMobile) return "Mobile";
@@ -170,19 +174,62 @@ async function deleteUser(req, res, next) {
         messaeg: "Invalid ID.",
       });
 
-    let user = await userModel.findOne({ _id : id })
-    if(!user)
-       return res.status(404).json({
+    let user = await userModel.findOne({ _id: id });
+    if (!user)
+      return res.status(404).json({
         success: false,
         message: "No user exists with this id ",
       });
+
+    await userModel.findByIdAndDelete(id);
+    await sessionModel.deleteMany({ userId: id });
+    res.status(200).json({
+      success: true,
+      message: "User deleted successful",
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function updateUser(req, res, next) {
+  try {
+    let {name, email, password} = req.body
+    let  id = req.params.id;
+
+    if (id === undefined || id.trim() === "")
+      return res.status(404).json({
+        success: false,
+        message: "Invalid Id.",
+      });
+
+    if (await userModel.exists({ id }))
+      return res.status(404).json({
+        success: false,
+        message: "user not found",
+      });
+
+    let updateData = {};
+
+    if (name !== undefined && name !== "") updateData.name = name;
+
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) updateData.email = email;
+
+
+    if (password !== undefined && password !== "") {
+      let hashedPassword = await bcrypt.hash(password, 10);
+      updateData.password = hashedPassword;
+    }
     
-      await userModel.findByIdAndDelete( id )
-      await sessionModel.deleteMany({ userId : id })
-      res.status(200).json({
-        success : true , 
-        message : "User deleted successful"
-      })
+  
+    const updateUser = await userModel.findOneAndUpdate({ _id: id }, updateData, {
+      returnDocument: "after"
+    });
+
+    res.status(200).json({
+        success: true,
+        message: "User updated successfully.",
+      });
   } catch (err) {
     next(err);
   }
@@ -199,6 +246,8 @@ async function toRefreshToken(req, res, next) {
       });
 
     const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+
+    const user = await userModel.findOne({ _id: decoded.id });
     const accessToken = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
       process.env.ACCESS_TOKEN_SECRET,
@@ -281,4 +330,22 @@ async function logout(req, res, next) {
   }
 }
 
-export { loginUser, logout, registerUser, deleteUser, toRefreshToken };
+async function multipleResponse(req, res , next){
+  try{
+    res.setHeader('content-type' , 'text/plain')
+    
+    res.write("success : true \n\n")
+
+    res.write("success : false \n\n")
+
+    res.write("message : Response sent \n\n")
+  
+    res.end()
+
+  }catch(err){
+    next(err)
+  }
+}
+
+export { deleteUser, loginUser, logout, registerUser, toRefreshToken, updateUser , multipleResponse };
+
