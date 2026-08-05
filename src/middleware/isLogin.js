@@ -35,7 +35,7 @@ async function isLogin(req, res, next) {
       });
 
     req.user = decoded;
-    next();
+    return next();
   } catch (err) {
     
     try {
@@ -77,9 +77,9 @@ async function isLogin(req, res, next) {
         });
 
         req.user = decoded;
-        next();
+        return next();
       } else {
-        next(err);
+        return next(err);
       }
     } catch (err) {
       if (err.name === "TokenExpiredError") {
@@ -97,7 +97,7 @@ async function isLogin(req, res, next) {
         });
       }
 
-      next(err);
+      return next(err);
     }
   }
 }
@@ -112,8 +112,10 @@ async function isAdmin(req, res, next) {
         success: false,
         message: "Only admin can access",
       });
-      next()
-  } catch (err) { next(err)}
+    return next();
+  } catch (err) {
+    return next(err);
+  }
 }
 
 export { isAdmin, isLogin };

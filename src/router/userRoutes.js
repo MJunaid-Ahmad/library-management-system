@@ -10,5 +10,4 @@ router.patch("/update/:id" , isLogin , isAdmin ,   updateUser)
 router.post("/refresh-token" ,  toRefreshToken)
 router.post("/logout" , isLogin ,  logout)
 
-
 export default router;

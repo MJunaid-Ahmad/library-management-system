@@ -13,7 +13,7 @@ async function registerUser(req, res, next) {
     let { name, email, password, role } = req.body;
 
     if (typeof name === "string") {
-      if (name === "" || name.trim().length < 3)
+      if ( name.trim().length < 3)
         return res.status(400).json({
           success: false,
           message: "Name must be at least 3 characters long..",
@@ -31,7 +31,7 @@ async function registerUser(req, res, next) {
         message: "Invalid email input.",
       });
 
-    if (password === undefined || password === null || password.trim() === "")
+    if ( !password  || password.trim() === "")
       return res.status(400).json({
         success: false,
         message: "Invalid password input.",
@@ -198,7 +198,7 @@ async function deleteUser(req, res, next) {
 
     await userModel.findByIdAndDelete(id);
     await sessionModel.deleteMany({ userId: id });
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "User deleted successful",
     });
@@ -243,14 +243,14 @@ async function updateUser(req, res, next) {
     }
 
     const updateUser = await userModel.findOneAndUpdate(
-      { _id: id },
+      { _id },
       updateData,
       {
         returnDocument: "after",
       },
     );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "User updated successfully.",
     });
@@ -286,7 +286,7 @@ async function toRefreshToken(req, res, next) {
       maxAge: process.env.ACCESS_TOKEN_AGE,
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Token refreshed successfully.",
     });
@@ -346,7 +346,7 @@ async function logout(req, res, next) {
       secure: false,
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Logout successfully",
     });
