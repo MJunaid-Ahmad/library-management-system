@@ -9,7 +9,7 @@ async function isLogin(req, res, next) {
   const refreshToken = req.cookies.refreshToken;
 
   try {
-    if (!refreshToken) {
+    if (!refreshToken || refreshToken.trim() ==="") {
       return res.status(401).json({
         success: false,
         message: "Unauthorized",

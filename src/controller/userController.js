@@ -1,27 +1,46 @@
-import sessionModel from "../model/sessionModel.js";
-import userModel from "../model/userModel.js";
-import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import dotenv from "dotenv";
+import jwt from "jsonwebtoken";
+import sessionModel from "../model/sessionModel.js";
+import userModel from "../model/userModel.js";
 dotenv.config();
+const regex =
+  /^([a-zA-Z0-9\.-]+)@([a-zA-Z0-9-]{2,16}).([a-z]{2,8})(.[a-z]{2,8})?$/;
+
 
 async function registerUser(req, res, next) {
   try {
     let { name, email, password, role } = req.body;
-    let valid = true;
 
-    if (name === undefined || name === "") valid = false;
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) valid = false;
-
-    if (password === undefined || password === "") valid = false;
-
-    if (role === "") valid = false;
-
-    if (!valid)
+    if (typeof name === "string") {
+      if (name === "" || name.trim().length < 3)
+        return res.status(400).json({
+          success: false,
+          message: "Name must be at least 3 characters long..",
+        });
+    } else {
       return res.status(400).json({
         success: false,
-        message: "Invalid input data.",
+        message: "Name must be string.",
+      });
+    }
+
+    if (!regex.test(email))
+      return res.status(400).json({
+        success: false,
+        message: "Invalid email input.",
+      });
+
+    if (password === undefined || password === null || password.trim() === "")
+      return res.status(400).json({
+        success: false,
+        message: "Invalid password input.",
+      });
+
+    if (role === null || role.trim() === "")
+      return res.status(400).json({
+        success: false,
+        message: "Invalid role input.",
       });
 
     if (await userModel.exists({ email })) {
@@ -52,20 +71,20 @@ async function registerUser(req, res, next) {
 async function loginUser(req, res, next) {
   try {
     let { email, password } = req.body;
-    let valid = true;
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) valid = false;
-
-    if (password === undefined || password === "") valid = false;
-
-    if (!valid)
+    if (!regex.test(email))
       return res.status(400).json({
         success: false,
-        message: "Invalid input data.",
+        message: "Invalid email input.",
+      });
+
+    if (password === undefined || password === null || password.trim() === "")
+      return res.status(400).json({
+        success: false,
+        message: "Invalid password input.",
       });
 
     let user = await userModel.findOne({ email });
-
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -114,12 +133,8 @@ async function loginUser(req, res, next) {
     }
 
     let loginTime = new Date();
-    // let expiresAt = new Date(loginTime);
-    // expiresAt.setDate(expiresAt.getDate() + 7);
-        
-    
     let expiresAt = new Date(loginTime);
-    expiresAt.setSeconds(expiresAt.getSeconds() + 20);
+    expiresAt.setDate(expiresAt.getDate() + 7);
 
     let getDevice = (req) => {
       if (req.useragent.isMobile) return "Mobile";
@@ -194,16 +209,16 @@ async function deleteUser(req, res, next) {
 
 async function updateUser(req, res, next) {
   try {
-    let {name, email, password} = req.body
-    let  id = req.params.id;
+    let { name, email, password } = req.body;
+    let _id = req.params.id.trim();
 
-    if (id === undefined || id.trim() === "")
+    if (!_id || typeof _id !== "string")
       return res.status(404).json({
         success: false,
         message: "Invalid Id.",
       });
 
-    if (await userModel.exists({ id }))
+    if (!(await userModel.exists({ _id })))
       return res.status(404).json({
         success: false,
         message: "user not found",
@@ -211,25 +226,34 @@ async function updateUser(req, res, next) {
 
     let updateData = {};
 
-    if (name !== undefined && name !== "") updateData.name = name;
+    if (typeof name === "string" && name.trim() !== "") {
+      if (name.trim().length < 3)
+        return res.status(400).json({
+          success: false,
+          message: "Name must be at least 3 characters long..",
+        });
+      updateData.name = name;
+    }
 
-    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) updateData.email = email;
+    if (regex.test(email)) updateData.email = email;
 
-
-    if (password !== undefined && password !== "") {
+    if ( password && password.trim() !== "") {
       let hashedPassword = await bcrypt.hash(password, 10);
       updateData.password = hashedPassword;
     }
-    
-  
-    const updateUser = await userModel.findOneAndUpdate({ _id: id }, updateData, {
-      returnDocument: "after"
-    });
+
+    const updateUser = await userModel.findOneAndUpdate(
+      { _id: id },
+      updateData,
+      {
+        returnDocument: "after",
+      },
+    );
 
     res.status(200).json({
-        success: true,
-        message: "User updated successfully.",
-      });
+      success: true,
+      message: "User updated successfully.",
+    });
   } catch (err) {
     next(err);
   }
@@ -248,6 +272,7 @@ async function toRefreshToken(req, res, next) {
     const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
 
     const user = await userModel.findOne({ _id: decoded.id });
+
     const accessToken = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
       process.env.ACCESS_TOKEN_SECRET,
@@ -330,22 +355,13 @@ async function logout(req, res, next) {
   }
 }
 
-async function multipleResponse(req, res , next){
-  try{
-    res.setHeader('content-type' , 'text/plain')
-    
-    res.write("success : true \n\n")
 
-    res.write("success : false \n\n")
 
-    res.write("message : Response sent \n\n")
-  
-    res.end()
-
-  }catch(err){
-    next(err)
-  }
-}
-
-export { deleteUser, loginUser, logout, registerUser, toRefreshToken, updateUser , multipleResponse };
-
+export {
+  deleteUser,
+  loginUser,
+  logout,
+  registerUser,
+  toRefreshToken,
+  updateUser,
+};

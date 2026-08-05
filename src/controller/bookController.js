@@ -8,15 +8,31 @@ async function addBook(req, res, next) {
 
     if (!req.file) valid = false;
 
-    if (title === undefined || title === "") valid = false;
+    if (typeof title === "string") {
+      if (title.trim().length < 3) valid = false;
+    } else {
+      valid = false;
+    }
 
-    if (author === undefined || author === "") valid = false;
+    if (typeof author === "string") {
+      if (author.trim().length < 3) valid = false;
+    } else {
+      valid = false;
+    }
 
-    if (category === undefined || category === "") valid = false;
+    if (typeof category === "string") {
+      if (category.trim().length < 3) valid = false;
+    } else {
+      valid = false;
+    }
 
-    if (isbn === undefined || isbn === "") valid = false;
+    if (typeof isbn !== "string" || isbn.trim() === "") {
+      valid = false;
+    }
 
-    if (publish === undefined || publish === "") valid = false;
+    if (typeof publish !== "number" || Number.isNaN(publish)) {
+      valid = false;
+    }
 
     if (!valid) {
       if (req.file) deleteImage(req.file.path);
@@ -80,18 +96,25 @@ async function updateBook(req, res, next) {
     let { title, author, category, isbn, publish, isAvailable } = req.body;
     let updatedData = {};
 
-    if (!(title === undefined || title === "")) updatedData.title = title;
+    if (typeof title === "string" && title.trim().length >= 3) {
+      updatedData.title = title;
+    } 
+    if (typeof author === "string" && author.trim().length >= 3) {
+      updatedData.author = author;
+    } 
+    if (typeof category === "string" && category.trim().length >= 3) {
+      updatedData.category = title;
+    } 
 
-    if (!(author === undefined || author === "")) updatedData.author = author;
+    if (typeof isbn === "string" || isbn.trim() !== "") {
+      updatedData.isbn = isbn;
+    }
 
-    if (!(category === undefined || category === "")) updatedData.category = category;
-
-    if (!(isbn === undefined || isbn === "")) updatedData.isbn = isbn;
-
-    if (!(publish === undefined || publish === ""))
+    if (typeof publish === "number" || !Number.isNaN(publish)) {
       updatedData.publish = publish;
+    }
 
-    if (!(isAvailable === undefined || isAvailable === ""))
+    if (typeof isAvailable === 'boolean')
       updatedData.isAvailable = isAvailable;
 
     let book = await bookModel.findOne({ isbn: req.params.isbn });
