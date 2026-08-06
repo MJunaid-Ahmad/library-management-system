@@ -5,7 +5,9 @@ async function addBook(req, res, next) {
   try {
     let { title, author, category, isbn, publish, isAvailable } = req.body;
     let valid = true;
-    
+    isbn = Number(isbn);
+    publish = Number(publish);
+
     if (!req.file) valid = false;
 
     if (typeof title !== "string" || title.trim().length < 3) {
@@ -24,47 +26,48 @@ async function addBook(req, res, next) {
       isbn === undefined ||
       isbn === null ||
       String(isbn).trim() === "" ||
-      Number.isNaN(Number(isbn))
+      Number.isNaN(isbn)
     ) {
       valid = false;
     }
-    
+
     if (
       publish === undefined ||
       publish === null ||
       String(publish).trim() === "" ||
-      Number.isNaN(Number(publish))
+      Number.isNaN(publish)
     ) {
       valid = false;
     }
+
+    if (isAvailable === "false") isAvailable = false;
+    else if (isAvailable === "true") isAvailable = true;
+    else if (isAvailable !== undefined) valid = false;
 
     if (!valid) {
       if (req.file) {
         deleteImage(req.file.path);
       }
+
       return res.status(400).json({
         success: false,
         message: "Invalid input data.",
       });
     }
 
-  
-    if (await bookModel.exists({ isbn: numericIsbn }))
+    if (await bookModel.exists({ isbn }))
       return res.status(409).json({
         success: false,
         message: "Book with this ISBN already exists",
       });
-
-    const boolIsAvailable =
-      isAvailable === "false" || isAvailable === false ? false : true;
 
     let book = await bookModel.create({
       title: title.trim(),
       author: author.trim(),
       coverImage: req.file.path,
       category: category.trim(),
-      isbn: Number(isbn),
-      publish: Number(publish),
+      isbn: isbn,
+      publish: publish,
       isAvailable: boolIsAvailable,
     });
 
@@ -80,8 +83,21 @@ async function addBook(req, res, next) {
 async function deleteBook(req, res, next) {
   try {
     let isbn = req.params.isbn;
-    let book = await bookModel.findOne({ isbn });
 
+    if (
+      isbn === undefined ||
+      isbn === null ||
+      String(isbn).trim() === "" ||
+      Number.isNaN(Number(isbn))
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid input data.",
+      });
+    }
+
+    isbn = Number(isbn);
+    let book = await bookModel.findOne({ isbn });
     if (!book) {
       return res.status(404).json({
         success: false,
@@ -97,6 +113,7 @@ async function deleteBook(req, res, next) {
       message: "Book Deleted successfully",
     });
   } catch (err) {
+    console.log(err);
     next(err);
   }
 }
@@ -135,8 +152,7 @@ async function updateBook(req, res, next) {
     }
 
     if (isAvailable !== undefined) {
-      updatedData.isAvailable =
-        isAvailable === "true" || isAvailable === true;
+      updatedData.isAvailable = isAvailable === "true" || isAvailable === true;
     }
 
     let book = await bookModel.findOne({ isbn: req.params.isbn });
@@ -146,13 +162,9 @@ async function updateBook(req, res, next) {
         deleteImage(book.coverImage);
       }
 
-      await bookModel.findOneAndUpdate(
-        { isbn: req.params.isbn },
-        updatedData,
-        {
-          returnDocument: "after",
-        },
-      );
+      await bookModel.findOneAndUpdate({ isbn: req.params.isbn }, updatedData, {
+        returnDocument: "after",
+      });
 
       return res.status(200).json({
         success: true,
@@ -217,7 +229,7 @@ async function searchBooks(req, res, next) {
     if (page === totalPages) hasNextPage = false;
 
     let matchedBook = await bookModel.find(filter).skip(skip).limit(limit);
-    
+
     return res.status(200).json({
       success: true,
       Books: matchedBook,
@@ -315,24 +327,43 @@ async function sortBooks(req, res, next) {
 async function isAvailable(req, res, next) {
   try {
     let { isbn, activity } = req.params;
+
+    if (
+      isbn === undefined ||
+      isbn === null ||
+      String(isbn).trim() === "" ||
+      Number.isNaN(Number(isbn))
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid input data.",
+      });
+    }
+
+    let book = await bookModel.findOne({ isbn });
+    if (!book) {
+      return res.status(404).json({
+        success: false,
+        message: "No Book exists with this ISBN ",
+      });
+    }
+
     if (activity.toLowerCase() === "return") {
-      await bookModel.findOneAndUpdate(
-        { isbn },
-        { isAvailable: true },
-        { returnDocument: "after" },
-      );
+      activity = true;
     } else if (activity.toLowerCase() === "borrow") {
-      await bookModel.findOneAndUpdate(
-        { isbn },
-        { isAvailable: false },
-        { returnDocument: "after" },
-      );
+      activity = false;
     } else {
       return res.status(400).json({
         success: false,
         message: "Invalid activity field",
       });
     }
+
+    await bookModel.findOneAndUpdate(
+      { isbn },
+      { isAvailable: activity },
+      { returnDocument: "after" },
+    );
 
     return res.status(200).json({
       success: true,

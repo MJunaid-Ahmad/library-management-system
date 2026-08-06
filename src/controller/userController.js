@@ -43,7 +43,7 @@ async function registerUser(req, res, next) {
         message: "Invalid role input.",
       });
 
-    if (await userModel.exists({ email })) {
+    if (await userModel.exists({ email : email })) {
       return res.status(409).json({
         success: false,
         message: "User already exists",
@@ -169,7 +169,7 @@ async function loginUser(req, res, next) {
       secure: false,
       maxAge: process.env.REFRESH_TOKEN_AGE,
     });
-
+    
     return res.status(200).json({
       success: true,
       message: "Login Successfully....",
@@ -355,13 +355,12 @@ async function logout(req, res, next) {
   }
 }
 
-
-
 export {
   deleteUser,
   loginUser,
   logout,
   registerUser,
   toRefreshToken,
-  updateUser,
+  updateUser
 };
+
