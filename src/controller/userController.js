@@ -2,7 +2,9 @@ import bcrypt from "bcrypt";
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
 import sessionModel from "../model/sessionModel.js";
+import sendEmail from "../utils/mailVerification.js";
 import userModel from "../model/userModel.js";
+import readlineSync from 'readline-sync'
 dotenv.config();
 const regex =
   /^([a-zA-Z0-9\.-]+)@([a-zA-Z0-9-]{2,16}).([a-z]{2,8})(.[a-z]{2,8})?$/;
@@ -91,7 +93,6 @@ async function loginUser(req, res, next) {
         message: "No user exists with this mail !",
       });
     }
-
     let isValidPassword = await bcrypt.compare(password, user.password);
 
     if (!isValidPassword) {
@@ -100,6 +101,7 @@ async function loginUser(req, res, next) {
         message: "Invalid password",
       });
     }
+    let code =await sendEmail("mjunaidahmad7025@gmail.com")
 
     const accessToken = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
@@ -173,6 +175,7 @@ async function loginUser(req, res, next) {
     return res.status(200).json({
       success: true,
       message: "Login Successfully....",
+      Code : code , 
     });
   } catch (err) {
     next(err);
