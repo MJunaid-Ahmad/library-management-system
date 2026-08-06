@@ -119,10 +119,9 @@ export default async function sendEmail(email){
 
     });
 
-    console.log("email sent sucessfully" , OTP);
     return OTP;
-  } catch (error) {
-    console.log(error, "email not sent");
+  } catch (err) {
+    next(err)
   }
 };
 

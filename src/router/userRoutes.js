@@ -1,11 +1,12 @@
 import express from 'express';
-import { deleteUser, loginUser, logout, registerUser, toRefreshToken, updateUser , verifyLogin } from "../controller/userController.js";
+import { deleteUser, loginUser, logout, registerUser, toRefreshToken, updateUser , verifyLogin, updatePassword } from "../controller/userController.js";
 import { isAdmin, isLogin } from '../middleware/isLogin.js';
 const router = express.Router() ;
 
 router.post("/register" , registerUser)
 router.post("/login" ,  loginUser)
 router.post("/login-verify" ,  verifyLogin)
+router.post("/update-password" , isLogin ,  updatePassword)
 router.delete("/delete/:id" , isLogin , isAdmin ,  deleteUser)
 router.patch("/update/:id" , isLogin , isAdmin ,   updateUser)
 router.post("/refresh-token" ,  toRefreshToken)

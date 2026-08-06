@@ -14,10 +14,10 @@ async function registerUser(req, res, next) {
     let { name, email, password, role } = req.body;
 
     if (typeof name === "string") {
-      if (name.trim().length < 3)
+      if (name.trim().length < 2)
         return res.status(400).json({
           success: false,
-          message: "Name must be at least 3 characters long..",
+          message: "Name must be at least 2 characters long..",
         });
     } else {
       return res.status(400).json({
@@ -32,7 +32,6 @@ async function registerUser(req, res, next) {
         message: "Invalid email input.",
       });
 
-      
     if (!password || password.trim() === "")
       return res.status(400).json({
         success: false,
@@ -41,11 +40,10 @@ async function registerUser(req, res, next) {
     else if (password.trim().length < 6)
       return res.status(400).json({
         success: false,
-        message: "Password must be at least 8 characters long..",
+        message: "Password must be at least 6 characters long..",
       });
-
-
-    if (role === null || role.trim() === "")
+    console.log(role);
+    if (role !== "user" && role !== "admin" && role !== undefined)
       return res.status(400).json({
         success: false,
         message: "Invalid role input.",
@@ -94,7 +92,7 @@ async function loginUser(req, res, next) {
     else if (password.trim().length < 6)
       return res.status(400).json({
         success: false,
-        message: "Password must be at least 8 characters long..",
+        message: "Password must be at least 6 characters long..",
       });
 
     let user = await userModel.findOne({ email });
@@ -149,19 +147,16 @@ async function verifyLogin(req, res, next) {
         message: "Invalid email input.",
       });
 
-
     if (!typeof otp === "Number" || Number.isNaN(otp))
       return res.status(400).json({
         success: false,
         message: "Invalid OTP input.",
       });
-
     else if (otp.length < 8)
       return res.status(400).json({
         success: false,
         message: "OTP must be 6 characters long..",
       });
-
 
     let user = await userModel.findOne({ email });
     if (!user) {
@@ -171,32 +166,40 @@ async function verifyLogin(req, res, next) {
       });
     }
 
-    const loginRequest = await loginRequestModel.findOne({userId : user._id});
+    const loginRequest = await loginRequestModel.findOne({
+      userId: user._id,
+      usedStatus: false,
+    });
 
-    if(Date.now() < new Date(loginRequest.expireTime).getTime()){
+    if (!loginRequest)
+      return res.status(404).json({
+        success: false,
+        message: "Something went wrong..! \n Please try again.",
+      });
+
+    if (Date.now() > new Date(loginRequest.expireTime).getTime()) {
       await loginRequestModel.findOneAndUpdate(
-      { userId: user._id, usedStatus: false },
-      { usedStatus: true },
-      { returnDocument: "after" },
-    );
-
-    return res.status(404).json({
+        { userId: user._id, usedStatus: false },
+        { usedStatus: true },
+        { returnDocument: "after" },
+      );
+      return res.status(404).json({
         success: false,
         message: "Expired OTP. Please try again later !",
       });
     }
 
-    if(!otp === loginRequest.OTP)
+    if (!otp === loginRequest.OTP)
       return res.status(404).json({
         success: false,
         message: "Invalid OTP !",
       });
 
-      await loginRequestModel.findOneAndUpdate(
+    await loginRequestModel.findOneAndUpdate(
       { userId: user._id, usedStatus: false },
       { usedStatus: true },
       { returnDocument: "after" },
-      );
+    );
 
     const accessToken = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
@@ -276,6 +279,68 @@ async function verifyLogin(req, res, next) {
   }
 }
 
+async function updatePassword(req, res, next) {
+  try {
+    let { currentPassword, updatedPassword, confirmUpdatedPassword } = req.body;
+    const accessToken = req.cookies.accessToken;
+
+    const decoded = await jwt.verify(
+      accessToken,
+      process.env.ACCESS_TOKEN_SECRET,
+    );
+
+    if (currentPassword && currentPassword.trim() !== "") {
+      if (currentPassword.trim().length < 6)
+        return res.status(400).json({
+          success: false,
+          message: "Password must be at least 6 characters long..",
+        });
+    }
+
+    const user = await userModel.findOne({ _id: decoded.id });
+
+    const isValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isValid)
+      return res.status(400).json({
+        success: false,
+        message: "Invalid current password.",
+      });
+
+    if (!updatedPassword || updatedPassword.trim() === "")
+      return res.status(400).json({
+        success: false,
+        message: "Invalid password input.",
+      });
+    else if (updatedPassword.trim().length < 6)
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 6 characters long..",
+      });
+
+    if (updatedPassword !== confirmUpdatedPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "New password and confirm password must be same.",
+      });
+    }
+
+    let hashedPassword = await bcrypt.hash(updatedPassword, 10);
+
+    await userModel.findByIdAndUpdate(
+      { _id: user._id },
+      { password: hashedPassword },
+      { returnDocument: "after" },
+    );
+
+    return res.status(400).json({
+      success: true,
+      message: "Password updated successfully.",
+    });
+  } catch (err) {
+    console.log(err.message);
+  }
+}
+
 async function deleteUser(req, res, next) {
   try {
     let { id } = req.params;
@@ -306,7 +371,7 @@ async function deleteUser(req, res, next) {
 
 async function updateUser(req, res, next) {
   try {
-    let { name, email, password } = req.body;
+    let { name, email } = req.body;
     let _id = req.params.id.trim();
 
     if (!_id || typeof _id !== "string")
@@ -333,16 +398,6 @@ async function updateUser(req, res, next) {
     }
 
     if (regex.test(email)) updateData.email = email;
-
-    if (password && password.trim() !== "") {
-      if (password.trim().length < 8)
-        return res.status(400).json({
-          success: false,
-          message: "Password must be at least 8 characters long..",
-        });
-      let hashedPassword = await bcrypt.hash(password, 10);
-      updateData.password = hashedPassword;
-    }
 
     const updateUser = await userModel.findOneAndUpdate({ _id }, updateData, {
       returnDocument: "after",
@@ -458,8 +513,7 @@ export {
   loginUser,
   logout,
   registerUser,
-  toRefreshToken,
-  updateUser,
+  toRefreshToken, updatePassword, updateUser,
   verifyLogin
 };
 
