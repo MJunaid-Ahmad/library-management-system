@@ -1,20 +1,20 @@
 import bcrypt from "bcrypt";
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
+import loginRequestModel from "../model/loginRequestModel.js";
 import sessionModel from "../model/sessionModel.js";
-import sendEmail from "../utils/mailVerification.js";
 import userModel from "../model/userModel.js";
+import sendEmail from "../utils/mailVerification.js";
 dotenv.config();
 const regex =
   /^([a-zA-Z0-9\.-]+)@([a-zA-Z0-9-]{2,16}).([a-z]{2,8})(.[a-z]{2,8})?$/;
-
 
 async function registerUser(req, res, next) {
   try {
     let { name, email, password, role } = req.body;
 
     if (typeof name === "string") {
-      if ( name.trim().length < 3)
+      if (name.trim().length < 3)
         return res.status(400).json({
           success: false,
           message: "Name must be at least 3 characters long..",
@@ -32,11 +32,18 @@ async function registerUser(req, res, next) {
         message: "Invalid email input.",
       });
 
-    if ( !password  || password.trim() === "")
+      
+    if (!password || password.trim() === "")
       return res.status(400).json({
         success: false,
         message: "Invalid password input.",
       });
+    else if (password.trim().length < 6)
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 8 characters long..",
+      });
+
 
     if (role === null || role.trim() === "")
       return res.status(400).json({
@@ -44,7 +51,7 @@ async function registerUser(req, res, next) {
         message: "Invalid role input.",
       });
 
-    if (await userModel.exists({ email : email })) {
+    if (await userModel.exists({ email: email })) {
       return res.status(409).json({
         success: false,
         message: "User already exists",
@@ -79,13 +86,19 @@ async function loginUser(req, res, next) {
         message: "Invalid email input.",
       });
 
-    if (password === undefined || password === null || password.trim() === "")
+    if (!password || password.trim() === "")
       return res.status(400).json({
         success: false,
         message: "Invalid password input.",
       });
+    else if (password.trim().length < 6)
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 8 characters long..",
+      });
 
     let user = await userModel.findOne({ email });
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -100,7 +113,90 @@ async function loginUser(req, res, next) {
         message: "Invalid password",
       });
     }
-    let code =await sendEmail("mjunaidahmad7025@gmail.com")
+
+    await loginRequestModel.findOneAndUpdate(
+      { userId: user._id, usedStatus: false },
+      { usedStatus: true },
+      { returnDocument: "after" },
+    );
+
+    let code = await sendEmail("mjunaidahmad7025@gmail.com");
+
+    const loginRequest = await loginRequestModel.create({
+      userId: user._id,
+      generateTime: new Date(),
+      expireTime: new Date(Date.now() + 10 * 60 * 1000),
+      OTP: code,
+      usedStatus: false,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Login Request add Successfully....",
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function verifyLogin(req, res, next) {
+  try {
+    const { email, otp } = req.body;
+
+    if (!regex.test(email))
+      return res.status(400).json({
+        success: false,
+        message: "Invalid email input.",
+      });
+
+
+    if (!typeof otp === "Number" || Number.isNaN(otp))
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP input.",
+      });
+
+    else if (otp.length < 8)
+      return res.status(400).json({
+        success: false,
+        message: "OTP must be 6 characters long..",
+      });
+
+
+    let user = await userModel.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "No user exists with this mail !",
+      });
+    }
+
+    const loginRequest = await loginRequestModel.findOne({userId : user._id});
+
+    if(Date.now() < new Date(loginRequest.expireTime).getTime()){
+      await loginRequestModel.findOneAndUpdate(
+      { userId: user._id, usedStatus: false },
+      { usedStatus: true },
+      { returnDocument: "after" },
+    );
+
+    return res.status(404).json({
+        success: false,
+        message: "Expired OTP. Please try again later !",
+      });
+    }
+
+    if(!otp === loginRequest.OTP)
+      return res.status(404).json({
+        success: false,
+        message: "Invalid OTP !",
+      });
+
+      await loginRequestModel.findOneAndUpdate(
+      { userId: user._id, usedStatus: false },
+      { usedStatus: true },
+      { returnDocument: "after" },
+      );
 
     const accessToken = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
@@ -170,11 +266,10 @@ async function loginUser(req, res, next) {
       secure: false,
       maxAge: process.env.REFRESH_TOKEN_AGE,
     });
-    
+
     return res.status(200).json({
       success: true,
       message: "Login Successfully....",
-      Code : code , 
     });
   } catch (err) {
     next(err);
@@ -239,18 +334,19 @@ async function updateUser(req, res, next) {
 
     if (regex.test(email)) updateData.email = email;
 
-    if ( password && password.trim() !== "") {
+    if (password && password.trim() !== "") {
+      if (password.trim().length < 8)
+        return res.status(400).json({
+          success: false,
+          message: "Password must be at least 8 characters long..",
+        });
       let hashedPassword = await bcrypt.hash(password, 10);
       updateData.password = hashedPassword;
     }
 
-    const updateUser = await userModel.findOneAndUpdate(
-      { _id },
-      updateData,
-      {
-        returnDocument: "after",
-      },
-    );
+    const updateUser = await userModel.findOneAndUpdate({ _id }, updateData, {
+      returnDocument: "after",
+    });
 
     return res.status(200).json({
       success: true,
@@ -363,6 +459,7 @@ export {
   logout,
   registerUser,
   toRefreshToken,
-  updateUser
+  updateUser,
+  verifyLogin
 };
 
