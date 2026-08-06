@@ -4,7 +4,6 @@ import jwt from "jsonwebtoken";
 import sessionModel from "../model/sessionModel.js";
 import sendEmail from "../utils/mailVerification.js";
 import userModel from "../model/userModel.js";
-import readlineSync from 'readline-sync'
 dotenv.config();
 const regex =
   /^([a-zA-Z0-9\.-]+)@([a-zA-Z0-9-]{2,16}).([a-z]{2,8})(.[a-z]{2,8})?$/;
